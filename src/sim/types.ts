@@ -5,15 +5,14 @@
  * never writes them back (spec §3.1).
  *
  * Dependency direction is strictly one-way: sim -> data (spec §3.2). The
- * data-domain unions (UnitTypeId, ArmorType) live in data/units.ts, which
- * imports nothing from sim.
+ * data-domain unions and MatchConfig live in data/, which imports nothing
+ * from sim.
  */
 
 import type { ArmorType, UnitTypeId } from '../data/units';
+import type { MatchConfig, Side, WaveScript } from '../data/types';
 
-export type { ArmorType, UnitTypeId };
-
-export type Side = 'player' | 'enemy';
+export type { ArmorType, MatchConfig, Side, UnitTypeId, WaveScript };
 
 /** Reserved: `stunned` has no producer in v1 but is the mount point for future control effects. */
 export type UnitState = 'idle' | 'move' | 'gather' | 'attack' | 'stunned' | 'dead';
@@ -86,6 +85,7 @@ export interface World {
   nextProjectileId: number;
   gold: Record<Side, number>;
   popUsed: Record<Side, number>;
+  popCap: Record<Side, number>;
   trainingQueue: Record<Side, TrainingOrder[]>;
   /** Index of the next wave to spawn (scripted levels). */
   waveIndex: number;
@@ -93,36 +93,24 @@ export interface World {
   nextWaveTick: number;
   outcome: Outcome;
   levelId: string;
+
+  // ── Match environment ────────────────────────────────────────────
+  // These are copied off MatchConfig at construction so the systems can reach
+  // them. Without worldWidth the separation step cannot clamp unit positions
+  // to the battlefield (spec §6.2), and without popCap / difficultyMult the
+  // economy and AI rules have no source for their limits (spec §8.3, §8.4).
+  /** Battlefield width. Units are clamped to [0, worldWidth]. */
+  worldWidth: number;
+  /** Multiplier on enemy hp and attack. 1 = no scaling. */
+  difficultyMult: number;
+  /** Endless mode: waves are generated procedurally rather than scripted. */
+  endless: boolean;
 }
 
 export interface TrainingOrder {
   typeId: UnitTypeId;
   /** Ticks remaining until the unit appears. */
   ticksLeft: number;
-}
-
-export interface WaveScript {
-  /** Tick at which this wave spawns. */
-  atTick: number;
-  /** Units to spawn, as a list of type ids. */
-  units: UnitTypeId[];
-}
-
-export interface MatchConfig {
-  levelId: string;
-  worldWidth: number;
-  baseHp: Record<Side, number>;
-  mineGold: Record<Side, number>;
-  startGold: Record<Side, number>;
-  startMiners: Record<Side, number>;
-  popCap: Record<Side, number>;
-  /** `scripted` = waves only, no economy. `economy` = full two-layer AI (spec §8.4). */
-  enemyAi: 'scripted' | 'economy';
-  /** Scripted wave table. Empty when enemyAi is `economy`. */
-  waves: WaveScript[];
-  endless: boolean;
-  /** Multiplier applied to enemy HP and attack. 1 = no scaling. */
-  difficultyMult: number;
 }
 
 /**

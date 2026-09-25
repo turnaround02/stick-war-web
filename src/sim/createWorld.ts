@@ -28,7 +28,7 @@ export function createWorld(config: MatchConfig, seed: number): World {
     }
   }
 
-  const popUsed = { player: 0, enemy: 0 } as Record<Side, number>;
+  const popUsed: Record<Side, number> = { player: 0, enemy: 0 };
   for (const unit of units) {
     popUsed[unit.side] += UNITS[unit.typeId].popCost;
   }
@@ -50,11 +50,15 @@ export function createWorld(config: MatchConfig, seed: number): World {
     nextProjectileId: 1,
     gold: { player: config.startGold.player, enemy: config.startGold.enemy },
     popUsed,
+    popCap: { player: config.popCap.player, enemy: config.popCap.enemy },
     trainingQueue: { player: [], enemy: [] },
     waveIndex: 0,
     nextWaveTick: config.waves.length > 0 ? config.waves[0].atTick : Number.MAX_SAFE_INTEGER,
     outcome: 'ongoing',
     levelId: config.levelId,
+    worldWidth: config.worldWidth,
+    difficultyMult: config.difficultyMult,
+    endless: config.endless,
   };
 }
 

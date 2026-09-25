@@ -93,7 +93,10 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
       weapon.setRotation(pose.weapon);
     },
     destroy(): void {
-      container.destroy(true);
+      // No `fromScene` flag: this is a per-unit removal during play, not a
+      // scene shutdown. Passing true would tell Phaser to skip per-child
+      // cleanup it still needs to do, and to treat the scene as going away.
+      container.destroy();
     },
   };
 }

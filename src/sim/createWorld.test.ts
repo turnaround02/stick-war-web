@@ -27,6 +27,23 @@ describe('createWorld', () => {
     expect(world.mines.enemy.goldLeft).toBeGreaterThan(0);
   });
 
+  // The systems can only reach these through the World, so they must be copied
+  // off MatchConfig at construction. Without worldWidth the M2 separation step
+  // has nothing to clamp against (spec §6.2).
+  it('carries the match environment onto the world', () => {
+    const world = createWorld(DEFAULT_MATCH, 1);
+    expect(world.worldWidth).toBe(DEFAULT_MATCH.worldWidth);
+    expect(world.difficultyMult).toBe(DEFAULT_MATCH.difficultyMult);
+    expect(world.endless).toBe(DEFAULT_MATCH.endless);
+    expect(world.popCap.player).toBe(POP_CAP);
+    expect(world.popCap.enemy).toBe(POP_CAP);
+  });
+
+  it('carries a non-default difficulty multiplier through unchanged', () => {
+    const world = createWorld({ ...DEFAULT_MATCH, difficultyMult: 1.75 }, 1);
+    expect(world.difficultyMult).toBe(1.75);
+  });
+
   it('starts with no units when startMiners is 0', () => {
     const world = createWorld(DEFAULT_MATCH, 1);
     expect(world.units).toHaveLength(0);

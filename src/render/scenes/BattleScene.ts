@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
-import { RENDER_DEMO_MATCH } from '../../data/levels';
+import { RENDER_DEMO_MATCH, RENDER_DEMO_SEED } from '../../data/levels';
 import { createWorld } from '../../sim/createWorld';
 import { step } from '../../sim/tick';
-import type { World } from '../../sim/types';
+import type { Side, World } from '../../sim/types';
 import { FixedTimestep } from '../timestep';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
 
@@ -27,7 +27,7 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
-    this.world = createWorld(RENDER_DEMO_MATCH, 20260925);
+    this.world = createWorld(RENDER_DEMO_MATCH, RENDER_DEMO_SEED);
 
     this.groundLine = this.add.graphics();
 
@@ -40,13 +40,24 @@ export class BattleScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(1000);
 
-    this.scale.on('resize', () => this.layout());
+    const onResize = () => this.layout();
+    this.scale.on('resize', onResize);
+    // Scene restart would otherwise stack a second listener and leak this one.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off('resize', onResize);
+    });
   }
 
   /**
    * The fixed-timestep driver (spec §3.3). Logic always runs at exactly 30 Hz
    * regardless of the display refresh rate; rendering interpolates between the
    * last two logic positions so motion stays smooth on a 60/120/144 Hz screen.
+   *
+   * syncStickmen() runs EVERY frame, not just tick frames. On a 144 Hz display
+   * only ~1 frame in 5 advances a tick; gating the sync behind `ticks > 0`
+   * would leave alpha pinned near 0 on the frames that do run (the accumulator
+   * was just drained) and would skip the 4 frames in between entirely —
+   * interpolation would never actually happen.
    */
   update(_time: number, delta: number): void {
     const ticks = this.timestep.advance(delta);
@@ -55,8 +66,9 @@ export class BattleScene extends Phaser.Scene {
       step(this.world, []);
     }
 
+    this.syncStickmen();
+
     if (ticks > 0) {
-      this.syncStickmen();
       this.tickLabel.setText(
         `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz logic`,
       );
@@ -95,7 +107,7 @@ export class BattleScene extends Phaser.Scene {
     this.drawBaseMarker('enemy', 0xd05a3f);
   }
 
-  private drawBaseMarker(side: 'player' | 'enemy', color: number): void {
+  private drawBaseMarker(side: Side, color: number): void {
     const base = this.world.bases[side];
     this.groundLine.fillStyle(color, 0.6);
     this.groundLine.fillRect(base.x - 20, this.groundY - 60, 40, 60);
@@ -114,6 +126,8 @@ export class BattleScene extends Phaser.Scene {
       }
       const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
       stickman.container.setPosition(x, this.groundY - STICKMAN_HIP_HEIGHT);
+      // M2: derive phase from (world.tick - unit.stateEnteredTick) / stateDuration
+      // so limbs animate; M1's poses ignore the phase argument.
       stickman.apply(unit.state, 0);
     }
 

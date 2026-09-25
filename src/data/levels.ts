@@ -16,7 +16,7 @@ import {
   START_GOLD,
   WORLD_WIDTH,
 } from './constants';
-import type { MatchConfig } from '../sim/types';
+import type { MatchConfig } from './types';
 
 /** Symmetric sandbox match. Both sides get a mine and start with no units. */
 export const DEFAULT_MATCH: MatchConfig = {
@@ -36,13 +36,17 @@ export const DEFAULT_MATCH: MatchConfig = {
 /**
  * TEMPORARY (M1): a variant with a few player miners so the render pipeline has
  * something to draw. Kept separate from DEFAULT_MATCH so the sim tests keep a
- * unit-free baseline. M2 deletes this and drives spawns from level data.
+ * unit-free baseline. M2 deletes both this and RENDER_DEMO_SEED, and drives
+ * spawns from level data instead.
  */
 export const RENDER_DEMO_MATCH: MatchConfig = {
   ...DEFAULT_MATCH,
   levelId: 'render-demo',
   startMiners: { player: 4, enemy: 0 },
 };
+
+/** TEMPORARY (M1): fixed seed for the render demo, so screenshots are repeatable. */
+export const RENDER_DEMO_SEED = 20260925;
 
 /** Positions used by createWorld. Kept here so geometry has one source of truth. */
 export const BASE_X = { player: PLAYER_BASE_X, enemy: ENEMY_BASE_X } as const;
