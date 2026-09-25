@@ -54,7 +54,18 @@ const DETERMINISM_PROPERTIES = [
 ];
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**'] },
+  // ESLint does not read .gitignore, so ignored paths must be listed here too.
+  // `.worktrees/**` matters: git worktrees hold a full second copy of the
+  // project including its build output, and linting those compressed bundles
+  // produces thousands of meaningless errors.
+  {
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      '.worktrees/**',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
