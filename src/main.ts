@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+import { BootScene } from './render/scenes/BootScene';
+import { BattleScene } from './render/scenes/BattleScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -14,6 +16,7 @@ const config: Phaser.Types.Core.GameConfig = {
     width: '100%',
     height: '100%',
   },
+  scene: [BootScene, BattleScene],
 };
 
 new Phaser.Game(config);
