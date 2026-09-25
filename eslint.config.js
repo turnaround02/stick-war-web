@@ -28,6 +28,21 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
 
+  // ── 全局约定：`_` 前缀表示「刻意未使用」 ────────────────────────
+  // M1's tick systems take a TickContext they do not read yet. TypeScript's
+  // noUnusedParameters honours the `_` prefix by default; the ESLint rule
+  // does not, so the convention is declared here.
+  {
+    files: ['src/**/*.ts'],
+    rules: {
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_',
+      }],
+    },
+  },
+
   // ── 全局：Phaser 4 陷阱 ────────────────────────────────────────
   {
     files: ['src/**/*.ts'],
