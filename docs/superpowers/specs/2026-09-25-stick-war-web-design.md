@@ -126,7 +126,7 @@ stick-war-web/
     │       ├── combat.ts          # 步骤 5
     │       └── cleanup.ts         # 步骤 6（含胜负判定）
     ├── input/
-    │   ├── commands.ts            # Command 类型与构造器（纯数据）
+    │   ├── commands.ts            # Command 构造器（纯数据，类型本身在 sim/types.ts）
     │   └── desktop.ts             # 键鼠 → Command 适配器
     ├── render/
     │   ├── scenes/
@@ -153,6 +153,10 @@ stick-war-web/
 - `render/` 与 `input/` 可引用 `sim/` 的类型与只读状态，**不可**修改 sim 状态。
 - `input/` 产出 `Command` 对象（纯数据），由 `render/` 每帧交给 `sim.tick()`。
 - 单元测试位于各模块旁的 `*.test.ts`。
+
+**依赖方向严格单向：`sim/` → `data/`。** 共享的数据域类型（`UnitTypeId`、`ArmorType`、`Side`、`MatchConfig`、`WaveScript`）定义在 `data/` 下，`data/` 不 import `sim/`。
+
+**`Command` 类型定义在 `sim/types.ts` 而非 `input/`。** 这是边界规则的直接推论：`sim/` 不能 import `input/`，所以 `sim` 必须消费的类型不能住在 `input/`。`input/` 只提供构造 `Command` 的辅助函数。
 
 ESLint 规则（`eslint.config.js`）强制第一条边界：
 
@@ -251,13 +255,22 @@ interface World {
   bases: Record<Side, Base>;
   mines: Record<Side, Mine>;
   projectiles: Projectile[];
+  nextProjectileId: number;
   gold: Record<Side, number>;
   popUsed: Record<Side, number>;
-  trainingQueue: Record<Side, { typeId: UnitTypeId; ticksLeft: number }[]>;
+  popCap: Record<Side, number>;
+  trainingQueue: Record<Side, TrainingOrder[]>;
   waveIndex: number;
   nextWaveTick: number;
   outcome: 'ongoing' | 'playerWin' | 'playerLose';
   levelId: string;
+
+  // 比赛环境：从 MatchConfig 复制一份，否则各 system 拿不到这些值。
+  // 没有 worldWidth，分离约束就无法把单位钳制回战场（§6.2）；
+  // 没有 popCap / difficultyMult，经济与 AI 规则就没有限值来源（§8.3、§8.4）。
+  worldWidth: number;
+  difficultyMult: number;
+  endless: boolean;
 }
 
 interface MatchConfig {
@@ -676,7 +689,7 @@ v1 使用 **WebAudio 程序化合成音效**，零素材、零版权风险，与
 | 1 | 数值不平衡（矛兵对基地效率高出 75%，§8.3） | 最优解单一，策略深度丧失 | M2 的 harness 首批验证项；数值集中在 `data/` 便于调整 |
 | 2 | Phaser 4 资料少于 v3 | 踩坑时缺少参考 | 程序化美术降低对素材教程的依赖；只依赖稳定的场景/容器/图形 API；官方 v3→v4 迁移指南 |
 | 3 | 120 单位骨骼容器性能不足 | 帧率跌破 60fps | M1 就建立性能基线；后备方案为启动时预烘焙纹理图集（§7.1） |
-| 4 | 1D 分离约束产生推挤抖动或穿透 | 视觉混乱，单位重叠 | 约束完全可单测；位置钳制到 `[0, worldWidth]`；排序用稳定排序保证确定性 |
+| 4 | 1D 分离约束产生推挤抖动或穿透 | 视觉混乱，单位重叠 | 约束完全可单测；位置钳制到 `[0, worldWidth]`；**排序比较器必须是全序**（`x` 相同时以 `unit.id` 决胜），不能依赖排序稳定性 |
 | 5 | 确定性被浮点破坏 | 回放与批量模拟失效 | 计时器强制整数 tick（§5.1）；禁止非确定性 API；用世界状态哈希做回归断言 |
 | 6 | 远程单位被己方单位「卡位」而无法输出 | 弓箭手完全不可用 | R1/R2 派生规则（§6.4）；M2 的对撞矩阵包含弓箭手带掩护的场景 |
 | 7 | 缩放后单位过小导致不可读 | 0.6x 下无法辨识兵种 | 配色 + 武器形状双重区分（`palette.ts`）；0.6x 下限经过可读性验证 |

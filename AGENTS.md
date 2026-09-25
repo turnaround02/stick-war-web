@@ -70,17 +70,26 @@ npm run lint     # ESLint（含 sim 边界检查）
 ## 当前状态
 
 - [x] 设计访谈完成（40 条决策，见 spec §13）
-- [x] 设计规格已写入 `docs/superpowers/specs/`
-- [ ] spec 评审通过
-- [ ] 实施计划写入 `docs/superpowers/plans/`
-- [ ] M1 骨架
+- [x] 设计规格已写入 `docs/superpowers/specs/` 并通过评审
+- [x] 实施计划写入 `docs/superpowers/plans/2026-09-25-m1-skeleton.md`
+- [x] **M1 骨架**（分支 `m1-skeleton`，worktree 位于 `.worktrees/m1-skeleton`）
 - [ ] M2 移动与战斗
 - [ ] M3 经济与指令
 - [ ] M4 AI 与关卡
 - [ ] M5 打磨
+
+## M1 遗留事项（M2 开工前处理）
+
+1. **单位时长仍是秒，尚未转 tick**。`data/units.ts` 的 `attackCooldown: 1.0` 等字段必须经 `toTicks()` 转换后才能存进 `cooldownTicksLeft`，否则游戏会快 30 倍。转换点应放在 `createWorld`（spec §5.1 要求「只转换一次」）。
+2. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`，M2 应删除并改由关卡数据驱动出生。
+3. **分离约束的排序比较器必须是全序**：`x` 相同时用 `unit.id` 决胜。`Array.prototype.sort` 的稳定性不是可依赖的正确性来源。
+4. **`World` 的确定性哈希**目前用 `JSON.stringify`，它依赖对象键插入顺序。M2 引入 `separation`/`combat` 后应换成真正的状态哈希。
+5. **`tick.test.ts` 的确定性测试目前近乎同义反复**（system 全是空实现）。M2 填充逻辑后它才会真正生效。
 
 ## 工作方式
 
 - 实现前先确认 spec 已评审通过，且实施计划已存在。
 - 每个里程碑独立验收，验收标准是客观的（能跑 / 能打赢 / 哈希一致），不接受「感觉差不多了」。
 - 数值改动集中在 `src/data/`，靠 M2 的 headless harness 验证，不靠手动玩。
+- **验收必须实测，不能靠推断。** M1 的插值缺陷就是靠浏览器里逐帧计数抓出来的（`syncStickmen` 调用 120 次 / 120 帧，而修复前只会调用 20 次）。
+- **Phaser 4 陷阱的 ESLint 规则必须用 `no-restricted-syntax`**：`no-restricted-properties` 只匹配裸标识符对象，抓不到 `Phaser.Math.TAU`（真正的陷阱），只能抓到 JS 里本就是 `undefined` 的 `Math.TAU`。
