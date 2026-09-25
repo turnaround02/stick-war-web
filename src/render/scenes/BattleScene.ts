@@ -1,8 +1,10 @@
 import Phaser from 'phaser';
-import { WORLD_WIDTH } from '../../data/constants';
+import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
 import { RENDER_DEMO_MATCH } from '../../data/levels';
 import { createWorld } from '../../sim/createWorld';
+import { step } from '../../sim/tick';
 import type { World } from '../../sim/types';
+import { FixedTimestep } from '../timestep';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
@@ -17,6 +19,8 @@ export class BattleScene extends Phaser.Scene {
   private groundLine!: Phaser.GameObjects.Graphics;
   private groundY = 0;
   private stickmen = new Map<number, Stickman>();
+  private timestep = new FixedTimestep();
+  private tickLabel!: Phaser.GameObjects.Text;
 
   constructor() {
     super({ key: 'Battle' });
@@ -31,7 +35,32 @@ export class BattleScene extends Phaser.Scene {
     this.syncStickmen();
     this.layout();
 
+    this.tickLabel = this.add
+      .text(12, 12, '', { fontFamily: 'monospace', fontSize: '16px', color: '#9aa4b2' })
+      .setScrollFactor(0)
+      .setDepth(1000);
+
     this.scale.on('resize', () => this.layout());
+  }
+
+  /**
+   * The fixed-timestep driver (spec §3.3). Logic always runs at exactly 30 Hz
+   * regardless of the display refresh rate; rendering interpolates between the
+   * last two logic positions so motion stays smooth on a 60/120/144 Hz screen.
+   */
+  update(_time: number, delta: number): void {
+    const ticks = this.timestep.advance(delta);
+
+    for (let i = 0; i < ticks; i++) {
+      step(this.world, []);
+    }
+
+    if (ticks > 0) {
+      this.syncStickmen();
+      this.tickLabel.setText(
+        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz logic`,
+      );
+    }
   }
 
   /**
@@ -83,7 +112,8 @@ export class BattleScene extends Phaser.Scene {
         stickman = createStickman(this, unit.typeId);
         this.stickmen.set(unit.id, stickman);
       }
-      stickman.container.setPosition(unit.x, this.groundY - STICKMAN_HIP_HEIGHT);
+      const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
+      stickman.container.setPosition(x, this.groundY - STICKMAN_HIP_HEIGHT);
       stickman.apply(unit.state, 0);
     }
 
