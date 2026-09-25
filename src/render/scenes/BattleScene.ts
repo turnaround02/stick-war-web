@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
 import { WORLD_WIDTH } from '../../data/constants';
-import { DEFAULT_MATCH } from '../../data/levels';
+import { RENDER_DEMO_MATCH } from '../../data/levels';
 import { createWorld } from '../../sim/createWorld';
 import type { World } from '../../sim/types';
+import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
 const GROUND_FRACTION = 2 / 3;
@@ -15,17 +16,21 @@ export class BattleScene extends Phaser.Scene {
   private world!: World;
   private groundLine!: Phaser.GameObjects.Graphics;
   private groundY = 0;
+  private stickmen = new Map<number, Stickman>();
 
   constructor() {
     super({ key: 'Battle' });
   }
 
   create(): void {
-    this.world = createWorld(DEFAULT_MATCH, 20260925);
+    this.world = createWorld(RENDER_DEMO_MATCH, 20260925);
 
     this.groundLine = this.add.graphics();
 
+    // Bring the sim and the view of it up together.
+    this.syncStickmen();
     this.layout();
+
     this.scale.on('resize', () => this.layout());
   }
 
@@ -41,6 +46,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.setScroll(0, 0);
 
     this.drawGround();
+    this.syncStickmen();
   }
 
   /** Draws the ground line and the base markers. Camera-agnostic: world coords only. */
@@ -64,5 +70,28 @@ export class BattleScene extends Phaser.Scene {
     const base = this.world.bases[side];
     this.groundLine.fillStyle(color, 0.6);
     this.groundLine.fillRect(base.x - 20, this.groundY - 60, 40, 60);
+  }
+
+  /** Creates or removes stickmen so the view matches the sim's unit list exactly. */
+  private syncStickmen(): void {
+    const alive = new Set<number>();
+
+    for (const unit of this.world.units) {
+      alive.add(unit.id);
+      let stickman = this.stickmen.get(unit.id);
+      if (!stickman) {
+        stickman = createStickman(this, unit.typeId);
+        this.stickmen.set(unit.id, stickman);
+      }
+      stickman.container.setPosition(unit.x, this.groundY - STICKMAN_HIP_HEIGHT);
+      stickman.apply(unit.state, 0);
+    }
+
+    for (const [id, stickman] of this.stickmen) {
+      if (!alive.has(id)) {
+        stickman.destroy();
+        this.stickmen.delete(id);
+      }
+    }
   }
 }
