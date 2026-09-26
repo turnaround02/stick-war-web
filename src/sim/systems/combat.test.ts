@@ -292,3 +292,50 @@ describe('combatSystem — safety', () => {
     expect(e.hp).toBe(150);
   });
 });
+
+describe('combatSystem — mine targets', () => {
+  it('does not damage anything when a unit is locked onto a mine', () => {
+    // A mine is a navigation destination, not a combat target. If a unit ever
+    // ends up locked onto one, the strike must be a no-op rather than damage
+    // resolved against a phantom unit id.
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 550 });
+    a.state = 'attack';
+    a.target = { kind: 'mine', side: 'player' };
+    // releaseStrike runs only on the tick a windup reaches zero.
+    a.windupTicksLeft = 1;
+    const world = makeWorld([a]);
+    // A live mine, so isTargetAlive does not short-circuit the strike and the
+    // mine-handling path is genuinely reached.
+    world.mines.player.goldLeft = 6000;
+
+    expect(() => combatSystem(ctx(world))).not.toThrow();
+    expect(world.units).toHaveLength(1);
+    expect(a.hp).toBe(150);
+    expect(world.stats.player.damageDealt).toBe(0);
+  });
+
+  it('does not damage the mine either', () => {
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'archer', x: 550 });
+    a.state = 'attack';
+    a.target = { kind: 'mine', side: 'player' };
+    a.windupTicksLeft = 1;
+    const world = makeWorld([a]);
+    world.mines.player.goldLeft = 6000;
+
+    combatSystem(ctx(world));
+    expect(world.mines.player.goldLeft).toBe(6000);
+    expect(world.projectiles).toHaveLength(0);
+  });
+
+  it('consumes the cooldown so the unit does not re-strike every tick', () => {
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 550 });
+    a.state = 'attack';
+    a.target = { kind: 'mine', side: 'player' };
+    a.windupTicksLeft = 1;
+    const world = makeWorld([a]);
+    world.mines.player.goldLeft = 6000;
+
+    combatSystem(ctx(world));
+    expect(a.cooldownTicksLeft).toBe(UNIT_TICKS.swordsman.attackCooldown);
+  });
+});

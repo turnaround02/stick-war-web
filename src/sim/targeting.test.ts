@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { acquireTarget, shouldKeepTarget, distanceToTarget, targetX } from './targeting';
+import { acquireTarget, shouldKeepTarget, distanceToTarget, targetX, isTargetAlive } from './targeting';
 import { spawnUnit } from './spawn';
-import { LOCK_BREAK_RANGE, TARGET_ACQUIRE_RANGE } from '../data/constants';
+import { LOCK_BREAK_RANGE, TARGET_ACQUIRE_RANGE, PLAYER_MINE_X, ENEMY_MINE_X } from '../data/constants';
 import type { Unit, World } from './types';
 
 function makeWorld(units: Unit[]): World {
@@ -15,8 +15,8 @@ function makeWorld(units: Unit[]): World {
       enemy: { side: 'enemy', x: 2700, hp: 3000, maxHp: 3000 },
     },
     mines: {
-      player: { side: 'player', x: 50, goldLeft: 0 },
-      enemy: { side: 'enemy', x: 2950, goldLeft: 0 },
+      player: { side: 'player', x: PLAYER_MINE_X, goldLeft: 6000 },
+      enemy: { side: 'enemy', x: ENEMY_MINE_X, goldLeft: 6000 },
     },
     projectiles: [],
     nextProjectileId: 1,
@@ -207,5 +207,37 @@ describe('targetX', () => {
 
   it('returns null for a missing unit', () => {
     expect(targetX(makeWorld([]), { kind: 'unit', id: 5 })).toBeNull();
+  });
+});
+
+describe('mine targets', () => {
+  it('resolves a mine position', () => {
+    const world = makeWorld([]);
+    expect(targetX(world, { kind: 'mine', side: 'player' })).toBe(PLAYER_MINE_X);
+    expect(targetX(world, { kind: 'mine', side: 'enemy' })).toBe(ENEMY_MINE_X);
+  });
+
+  it('treats a mine with gold left as alive', () => {
+    const world = makeWorld([]);
+    expect(isTargetAlive(world, { kind: 'mine', side: 'player' })).toBe(true);
+  });
+
+  it('treats a depleted mine as dead', () => {
+    const world = makeWorld([]);
+    world.mines.player.goldLeft = 0;
+    expect(isTargetAlive(world, { kind: 'mine', side: 'player' })).toBe(false);
+  });
+
+  it('measures distance to a mine from the unit', () => {
+    const u = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 700 });
+    u.target = { kind: 'mine', side: 'player' };
+    expect(distanceToTarget(makeWorld([u]), u)).toBeCloseTo(150, 10);
+  });
+
+  it('never picks a mine as a combat target', () => {
+    // acquireTarget is for combat only; miners choose their mine in aiSystem.
+    const u = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 500 });
+    const t = acquireTarget(makeWorld([u]), u);
+    expect(t === null || t.kind !== 'mine').toBe(true);
   });
 });

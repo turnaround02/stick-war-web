@@ -18,13 +18,18 @@ export type { ArmorType, MatchConfig, Side, Stance, UnitTypeId, WaveScript };
 export type UnitState = 'idle' | 'move' | 'gather' | 'attack' | 'stunned' | 'dead';
 
 /**
- * What a unit is currently attacking. A discriminated union rather than a
- * numeric id so the type system forces every consumer to handle bases —
- * units attacking the enemy base is core gameplay, not an edge case.
+ * What a unit is currently heading for or attacking. A discriminated union
+ * rather than a numeric id so the type system forces every consumer to handle
+ * bases — units attacking the enemy base is core gameplay, not an edge case.
+ *
+ * `mine` exists for navigation, not combat: a miner's "go home" leg is
+ * expressed as targeting its own base, so `target` alone decides where any
+ * unit is going and movementSystem needs no miner-specific branch.
  */
 export type TargetRef =
   | { kind: 'unit'; id: number }
   | { kind: 'base'; side: Side }
+  | { kind: 'mine'; side: Side }
   | null;
 
 export interface Unit {

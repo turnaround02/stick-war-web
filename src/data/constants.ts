@@ -29,10 +29,18 @@ export const PLAYER_BASE_X = 300;
 /** Enemy base centre. */
 export const ENEMY_BASE_X = 2700;
 
-/** Player gold mine, 250px behind the player base (spec §7.2). */
-export const PLAYER_MINE_X = 50;
-/** Enemy gold mine, 250px behind the enemy base. */
-export const ENEMY_MINE_X = 2950;
+/**
+ * Player gold mine, 250px toward the battlefield from the player base.
+ *
+ * NOT behind the base: M2's corridor clamps units to
+ * [base + BASE_RADIUS + r, ...], so a miner could never reach a mine placed
+ * behind its own base and the gather cycle could not start. Placing it on the
+ * battlefield side also keeps the mine threatenable without requiring an enemy
+ * to walk through a base.
+ */
+export const PLAYER_MINE_X = 550;
+/** Enemy gold mine, 250px toward the battlefield from the enemy base. */
+export const ENEMY_MINE_X = 2450;
 
 // ── Bases, economy, population (spec §8.3) ──────────────────────────
 export const BASE_HP = 3000;

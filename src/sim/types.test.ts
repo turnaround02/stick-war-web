@@ -9,6 +9,8 @@ function describeTarget(target: TargetRef): string {
       return `unit:${target.id}`;
     case 'base':
       return `base:${target.side}`;
+    case 'mine':
+      return `mine:${target.side}`;
   }
 }
 
