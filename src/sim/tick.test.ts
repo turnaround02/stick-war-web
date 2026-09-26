@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TICK_SYSTEMS, step } from './tick';
 import { createWorld } from './createWorld';
+import { hashWorld } from './hash';
 import { DEFAULT_MATCH } from '../data/levels';
 
 describe('TICK_SYSTEMS order', () => {
@@ -53,7 +54,7 @@ describe('step', () => {
     const runOnce = () => {
       const world = createWorld({ ...DEFAULT_MATCH, startMiners: { player: 3, enemy: 3 } }, 999);
       for (let i = 0; i < 120; i++) step(world, []);
-      return JSON.stringify(world);
+      return hashWorld(world);
     };
     expect(runOnce()).toBe(runOnce());
   });

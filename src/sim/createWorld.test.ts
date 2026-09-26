@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createWorld } from './createWorld';
+import { hashWorld } from './hash';
 import { DEFAULT_MATCH } from '../data/levels';
 import { BASE_HP, POP_CAP, WORLD_WIDTH } from '../data/constants';
 
@@ -98,7 +99,7 @@ describe('createWorld', () => {
   it('produces identical worlds for identical seeds', () => {
     const a = createWorld(DEFAULT_MATCH, 777);
     const b = createWorld(DEFAULT_MATCH, 777);
-    expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+    expect(hashWorld(a)).toBe(hashWorld(b));
   });
 
   it('does not throw when a side has zero units', () => {
