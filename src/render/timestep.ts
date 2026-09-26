@@ -10,6 +10,8 @@
  */
 
 import { TICKS_PER_SEC } from '../data/constants';
+import { step } from '../sim/tick';
+import type { Command, World } from '../sim/types';
 
 /** Duration of one logic tick in milliseconds. */
 export const STEP_MS = 1000 / TICKS_PER_SEC;
@@ -62,4 +64,35 @@ export class FixedTimestep {
     if (alpha >= 1) return 0.999999;
     return alpha;
   }
+}
+
+/**
+ * The scene's whole per-frame logic step, extracted from BattleScene so the
+ * speed/command interaction is testable without a canvas.
+ *
+ * `speed` changes ONLY how many ticks run this frame. Two consequences that
+ * this function is the single place responsible for:
+ *
+ *   - Commands reach only the FIRST tick of the frame (spec §6.3.3). At 4x a
+ *     frame runs several ticks, and handing the same orders to each would spend
+ *     four times the gold for one click.
+ *   - The per-tick work is identical at every speed, so the same seed reaches
+ *     the same state regardless of how fast it was played. That property is
+ *     what the determinism tests assert, and this function is where it could
+ *     actually be broken.
+ */
+export function advanceWorld(
+  timestep: FixedTimestep,
+  world: World,
+  deltaMs: number,
+  speed: number,
+  commands: Command[],
+): number {
+  const ticks = timestep.advance(deltaMs, speed);
+
+  for (let i = 0; i < ticks; i++) {
+    step(world, i === 0 ? commands : []);
+  }
+
+  return ticks;
 }
