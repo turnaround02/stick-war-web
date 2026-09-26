@@ -20,16 +20,31 @@ export const STEP_MS = 1000 / TICKS_PER_SEC;
  */
 export const MAX_ACCUMULATOR_MS = 250;
 
+/** Selectable game speeds. Logic is identical at every one. */
+export const SPEED_STEPS = [1, 2, 4] as const;
+
+export type GameSpeed = (typeof SPEED_STEPS)[number];
+
 export class FixedTimestep {
   private accumulator = 0;
 
   /**
    * Feeds one render frame's elapsed time and returns how many logic ticks
    * should run this frame.
+   *
+   * `speed` scales TIME, not the tick. The simulation still advances in whole
+   * 30 Hz steps, so a match played at 4x produces the same sequence of states
+   * as the same match at 1x — only fewer frames pass. That is what lets the
+   * determinism hash be speed-independent.
+   *
+   * A non-positive speed falls back to 1x: a stalled accumulator would freeze
+   * the game with nothing on screen to explain why.
    */
-  advance(deltaMs: number): number {
+  advance(deltaMs: number, speed = 1): number {
+    const scale = speed > 0 ? speed : 1;
+
     if (deltaMs > 0) {
-      this.accumulator += deltaMs;
+      this.accumulator += deltaMs * scale;
     }
     if (this.accumulator > MAX_ACCUMULATOR_MS) {
       this.accumulator = MAX_ACCUMULATOR_MS;
