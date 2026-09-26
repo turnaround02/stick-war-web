@@ -73,22 +73,48 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] 设计规格已写入 `docs/superpowers/specs/` 并通过评审
 - [x] 实施计划写入 `docs/superpowers/plans/2026-09-25-m1-skeleton.md`
 - [x] **M1 骨架**（已合并至 `master`）
-- [ ] **M2 移动与战斗**
-- [ ] M3 经济与指令
+- [x] **M2 移动与战斗**（分支 `m2-combat`，16 commits，215 tests）
+- [ ] **M3 经济与指令**
 - [ ] M4 AI 与关卡
 - [ ] M5 打磨
 
-## M2 开工前必须处理
+## M2 已交付
 
-1. **单位时长仍是秒，尚未转 tick**。`data/units.ts` 的 `attackCooldown: 1.0` 等字段必须经 `toTicks()` 转换，否则游戏会快 30 倍。
-   - **转换点：在 `data/` 里建一张派生表 `UNIT_TICKS`**（模块加载时 `Math.round(s * 30)` 算一次），system 直接 import。
-   - **不要**放在 `createWorld`（它只构造世界，而 `attackCooldown` 是战斗时才读的，`World` 里没有单位定义表）。
-   - **不要**把 tick 值烤进每个 `Unit` 实例（每单位冗余）。
-   - `difficultyMult` 是**每局**的乘数，不能进静态表，属于 M4/M5。
-2. **分离约束的排序比较器必须是全序**：`x` 相同时用 `unit.id` 决胜。`Array.prototype.sort` 的稳定性不是可依赖的正确性来源。
-3. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`。M2 把它改成对撞演示，M4 改由关卡数据驱动出生。
-4. **确定性哈希**：M1 用 `JSON.stringify`，依赖对象键插入顺序且字段重排会假报差异。M2 换成 FNV-1a 真哈希。
-5. **`tick.test.ts` 的确定性测试目前近乎同义反复**（system 全是空实现）。M2 填充逻辑后它才会真正生效。
+`src/sim/` 的五个 system 现在有真实逻辑（economy 与 commands 仍是空壳，属于 M3）：
+
+- `movement` — 姿态驱动的积分 + 调用 `separation`
+- `separation` — 加权双向扫描 + 单调游标扫描（保证零重叠）+ 基地走廊钳制
+- `ai` — 状态机与目标锁定
+- `combat` — 前摇三规则、弹丸、伤害与护甲、`stats` 累加
+- `cleanup` — 两阶段死亡、双条件胜负
+
+配套：`data/unitTicks.ts`（秒→tick 唯一转换点）、`sim/hash.ts`（FNV-1a）、
+`sim/spawn.ts`、`sim/targeting.ts`、`sim/damage.ts`、`sim/harness.ts`（对撞矩阵）。
+
+## M3 开工前必须处理
+
+1. **`World.trainingQueue` 目前无人消费**。`economySystem` 是空壳，造兵队列永远不被推进。M3 必须接上，否则造兵系统完全无效。
+2. **`commandsSystem` 是空壳**，没有任何东西产生 `Command`。姿态由 `createWorld` 在出生时直接设定（`initialStance`）。M3 的 HUD 与键鼠要经由 `Command` 走 `commandsSystem`，不要绕过它直接改 `stance`。
+3. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`。M4 改由关卡数据驱动出生。
+4. **相机不滚动也不缩放**（M1 就有的限制）。对撞演示里敌方在视野外，M3 要实现相机（spec §7.2：0.6x~1.2x，横向滚动）。
+5. **没有 HUD**：金币、人口、造兵按钮、战线指示器全部待做（spec §7.3）。
+
+## M2 已知平衡问题（不是 bug，交给 M3 调）
+
+`sim/harness.ts` 的首份对撞矩阵显示**弓箭手性价比过高**，与 spec §6.5 的设计意图（弓箭手必须有掩护才有价值）不符：
+
+| 场景 | 结果 |
+|---|---|
+| 弓箭手×12（960 金）vs 剑士×10（1000 金） | **弓箭手胜**，1500:640 伤害 |
+| 弓箭手×10（800 金）vs 矛兵×9（810 金） | **弓箭手胜**，1260:344 伤害 |
+| 矛兵×11 vs 剑士×10 | 矛兵胜 ✓ 符合 spec §6.5 |
+
+疑似成因：射程 200 让弓箭手在接近阶段白拿约 6 轮齐射，而近战始终贴不上身。
+按 spec §11，这属于**平衡**（harness 的产出目标），**不**属于 M2 验收标准。
+
+**重要提醒：R1/R2 确实生效。** 受控实验（同样 6 弓箭手 vs 同样 10 剑士，一组加 5 剑士掩护）
+显示：两者都射 45 箭，但有掩护造成 **1370** 伤害、无掩护只有 **613** —— 2.2 倍差距。
+
 
 ## M2 关键设计（容易忘的）
 
