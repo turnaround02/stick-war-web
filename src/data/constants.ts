@@ -9,6 +9,7 @@
 
 // Type-only import: erased at compile time, so this does not create a runtime
 // cycle with sim/types.ts (which imports value types from data/units.ts).
+import type { ArmorType } from './units';
 import type { Stance, UnitState } from '../sim/types';
 
 /** Logic frames per second. Fixed — never make this dynamic. */
@@ -36,6 +37,10 @@ export const ENEMY_MINE_X = 2950;
 // ── Bases, economy, population (spec §8.3) ──────────────────────────
 export const BASE_HP = 3000;
 export const BASE_ARMOR = 10;
+
+/** Bases count as heavy armour, so anti-heavy bonuses apply against them. */
+export const BASE_ARMOR_TYPE: ArmorType = 'heavy';
+
 export const BASE_RADIUS = 40;
 
 /** Population cap per side. */

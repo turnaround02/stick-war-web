@@ -2,12 +2,13 @@ import { describe, it, expect } from 'vitest';
 import { hashWorld } from './hash';
 import { createWorld } from './createWorld';
 import { DEFAULT_MATCH } from '../data/levels';
+import type { MatchConfig } from './types';
 
-const match = {
+const match: MatchConfig = {
   ...DEFAULT_MATCH,
   initialUnits: {
-    player: ['swordsman', 'archer'] as const,
-    enemy: ['spearman'] as const,
+    player: ['swordsman', 'archer'],
+    enemy: ['spearman'],
   },
 };
 

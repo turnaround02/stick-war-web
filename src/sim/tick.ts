@@ -16,7 +16,7 @@
  * Never use Math.random / Date.now / performance.now in here or in systems/.
  */
 
-import type { Command, World } from './types';
+import type { Command, TickContext, TickSystem, World } from './types';
 import { economySystem } from './systems/economy';
 import { commandsSystem } from './systems/commands';
 import { aiSystem } from './systems/ai';
@@ -24,12 +24,8 @@ import { movementSystem } from './systems/movement';
 import { combatSystem } from './systems/combat';
 import { cleanupSystem } from './systems/cleanup';
 
-export interface TickContext {
-  world: World;
-  commands: Command[];
-}
-
-export type TickSystem = (ctx: TickContext) => void;
+// Re-exported so callers that already import from tick.ts keep working.
+export type { TickContext, TickSystem };
 
 /**
  * The fixed system order. `step` iterates this array, so the declaration here

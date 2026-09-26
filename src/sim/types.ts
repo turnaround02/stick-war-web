@@ -138,3 +138,18 @@ export interface TrainingOrder {
 export type Command =
   | { kind: 'train'; side: Side; typeId: UnitTypeId }
   | { kind: 'setStance'; side: Side; unitIds: number[]; stance: Stance };
+
+/**
+ * What every tick system receives.
+ *
+ * Lives here rather than in tick.ts because tick.ts imports the systems while
+ * the systems need this type — putting it in tick.ts would make the dependency
+ * direction circular, with the orchestrator depending on its own consumers.
+ */
+export interface TickContext {
+  world: World;
+  commands: Command[];
+}
+
+/** A single step of the tick pipeline. */
+export type TickSystem = (ctx: TickContext) => void;
