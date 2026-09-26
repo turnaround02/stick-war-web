@@ -70,7 +70,12 @@ describe('step', () => {
   });
 
   it('leaves outcome ongoing during a quiet skirmish', () => {
-    const world = createWorld(DEFAULT_MATCH, 1);
+    // Both sides need at least one unit: a zero-unit world is a mutual wipe
+    // and cleanupSystem resolves it to playerLose on the first tick (spec §6.6).
+    const world = createWorld(
+      { ...DEFAULT_MATCH, initialUnits: { player: ['swordsman'], enemy: ['swordsman'] } },
+      1,
+    );
     for (let i = 0; i < 300; i++) step(world, []);
     expect(world.outcome).toBe('ongoing');
   });
