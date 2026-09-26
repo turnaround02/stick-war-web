@@ -178,10 +178,13 @@ describe('distanceToTarget', () => {
     expect(distanceToTarget(makeWorld([me, e]), me)).toBeCloseTo(50, 10);
   });
 
-  it('measures to a base', () => {
+  it('measures to a base EDGE, not its centre', () => {
     const me = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 2600 });
     me.target = { kind: 'base', side: 'enemy' };
-    expect(distanceToTarget(makeWorld([me]), me)).toBeCloseTo(100, 10);
+    // base centre 2700, BASE_RADIUS 40 -> 100 raw, 60 to the edge. Measuring to
+    // the centre would make a base unreachable for short-ranged melee, which
+    // are physically held clear of it.
+    expect(distanceToTarget(makeWorld([me]), me)).toBeCloseTo(60, 10);
   });
 
   it('returns Infinity for no target', () => {

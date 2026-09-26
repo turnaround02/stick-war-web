@@ -9,7 +9,12 @@
  * every tick, flickering between targets and never committing to a fight.
  */
 
-import { LOCK_BREAK_RANGE, TARGET_ACQUIRE_RANGE, TARGET_TOLERANCE } from '../data/constants';
+import {
+  BASE_RADIUS,
+  LOCK_BREAK_RANGE,
+  TARGET_ACQUIRE_RANGE,
+  TARGET_TOLERANCE,
+} from '../data/constants';
 import type { Side, TargetRef, Unit, World } from './types';
 
 /** A unit's forward direction: players face right, enemies face left. */
@@ -32,10 +37,23 @@ export function isTargetAlive(world: World, target: TargetRef): boolean {
   return unit !== undefined && unit.state !== 'dead' && unit.hp > 0;
 }
 
-/** Distance from a unit to its locked target, or Infinity when it has none. */
+/**
+ * Distance from a unit to its locked target, or Infinity when it has none.
+ *
+ * For a base this measures to the base's EDGE, not its centre. A base has a
+ * radius, and units are physically held clear of it, so measuring to the
+ * centre would make the base permanently out of reach for short-ranged melee:
+ * a swordsman stops at centre - 54 and would read 54px against a 30px range,
+ * never entering the attack state.
+ */
 export function distanceToTarget(world: World, unit: Unit): number {
   const x = targetX(world, unit.target);
-  return x === null ? Infinity : Math.abs(x - unit.x);
+  if (x === null) return Infinity;
+  const raw = Math.abs(x - unit.x);
+  if (unit.target !== null && unit.target.kind === 'base') {
+    return Math.max(0, raw - BASE_RADIUS);
+  }
+  return raw;
 }
 
 /**

@@ -43,11 +43,12 @@ function ctx(world: World): TickContext {
 
 describe('separationSystem', () => {
   it('leaves well-separated units untouched', () => {
-    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 100 });
-    const b = spawnUnit({ id: 2, side: 'player', typeId: 'swordsman', x: 200 });
+    // Inside the corridor between the bases (player 300, enemy 2700).
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 800 });
+    const b = spawnUnit({ id: 2, side: 'player', typeId: 'swordsman', x: 900 });
     separationSystem(ctx(makeWorld([a, b])));
-    expect(a.x).toBe(100);
-    expect(b.x).toBe(200);
+    expect(a.x).toBe(800);
+    expect(b.x).toBe(900);
   });
 
   it('pushes overlapping allies apart', () => {
@@ -71,8 +72,8 @@ describe('separationSystem', () => {
   });
 
   it('gives way asymmetrically: the retreating unit barely moves', () => {
-    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 100, stance: 'hold' });
-    const b = spawnUnit({ id: 2, side: 'player', typeId: 'swordsman', x: 110, stance: 'retreat' });
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 800, stance: 'hold' });
+    const b = spawnUnit({ id: 2, side: 'player', typeId: 'swordsman', x: 810, stance: 'retreat' });
     const aBefore = a.x;
     const bBefore = b.x;
     separationSystem(ctx(makeWorld([a, b])));

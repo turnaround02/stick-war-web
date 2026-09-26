@@ -19,6 +19,19 @@ import type { TickContext, Unit } from '../types';
 export function separationSystem(ctx: TickContext): void {
   const { world } = ctx;
 
+  // Order matters, and this is the final word on positions.
+  //
+  // 1. Confine every unit to the corridor between the two bases. This runs
+  //    FIRST because it is a hard boundary: anything after it can still push a
+  //    unit, but nothing may push a unit behind its own base.
+  confineToCorridor(world.units, world.bases.player.x, world.bases.enemy.x, world.worldWidth);
+
+  // 2. Opposing units stop at contact.
+  blockEnemies(world.units);
+
+  // 3. Same-side separation runs LAST so it is the operation that decides the
+  //    final positions. It cannot reintroduce an ally overlap, which is what
+  //    the acceptance criterion actually requires.
   for (const side of ['player', 'enemy'] as const) {
     const allies = world.units.filter((u) => u.side === side);
     if (allies.length === 0) continue;
@@ -29,9 +42,8 @@ export function separationSystem(ctx: TickContext): void {
     separateAllies(allies);
   }
 
-  blockEnemies(world.units);
+  // 4. Re-clamp in case separation pushed anyone out of bounds.
   clampToWorld(world.units, world.worldWidth);
-  blockBases(world.units, world.bases.player.x, world.bases.enemy.x);
 }
 
 /**
@@ -137,17 +149,32 @@ function clampToWorld(units: Unit[], worldWidth: number): void {
   }
 }
 
-/** Bases are immovable obstacles (spec §6.2). Units are pushed clear of them. */
-function blockBases(units: Unit[], playerBaseX: number, enemyBaseX: number): void {
+/**
+ * Confines every unit to the corridor between the two bases.
+ *
+ * This replaced a radial push away from the base centre, which had two faults:
+ * it could shove a unit to the FAR side of its own base (behind it, where
+ * nothing sensible lives on a single axis), and because it ran after the
+ * same-side passes it could re-create an ally overlap as the last operation of
+ * the tick.
+ *
+ * A directional corridor has neither problem: it is idempotent, it only ever
+ * pushes a unit TOWARD the battlefield, and it is applied before the separation
+ * passes so those remain the final word on spacing.
+ */
+function confineToCorridor(
+  units: Unit[],
+  playerBaseX: number,
+  enemyBaseX: number,
+  worldWidth: number,
+): void {
   for (const u of units) {
-    const baseX = u.side === 'player' ? playerBaseX : enemyBaseX;
-    const minGap = BASE_RADIUS + UNITS[u.typeId].bodyRadius;
-    const gap = u.x - baseX;
-    const dist = Math.abs(gap);
-    if (dist >= minGap) continue;
-
-    // Push away from the base, along whichever side the unit is on.
-    const dir = gap >= 0 ? 1 : -1;
-    u.x = baseX + dir * minGap;
+    const r = UNITS[u.typeId].bodyRadius;
+    const min = playerBaseX + BASE_RADIUS + r;
+    const max = enemyBaseX - BASE_RADIUS - r;
+    if (u.x < min) u.x = min;
+    else if (u.x > max) u.x = max;
+    if (u.x < 0) u.x = 0;
+    else if (u.x > worldWidth) u.x = worldWidth;
   }
 }
