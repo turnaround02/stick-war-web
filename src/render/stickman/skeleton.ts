@@ -21,6 +21,8 @@ export interface Stickman {
   container: Phaser.GameObjects.Container;
   /** Applies a pose. `phase` is 0..1 through the current state. */
   apply(state: UnitState, phase: number): void;
+  /** +1 faces right, -1 faces left. A horizontal flip of the whole container. */
+  setFacing(dir: 1 | -1): void;
   destroy(): void;
 }
 
@@ -91,6 +93,11 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
       legFront.setRotation(pose.legFront);
       legBack.setRotation(pose.legBack);
       weapon.setRotation(pose.weapon);
+    },
+    setFacing(dir: 1 | -1): void {
+      // Facing is derived from side, not stored in the sim: on a single axis
+      // "player is left, enemy is right" is a constant fact.
+      container.setScale(dir, 1);
     },
     destroy(): void {
       // No `fromScene` flag: this is a per-unit removal during play, not a

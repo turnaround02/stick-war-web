@@ -86,12 +86,15 @@ function toWinner(outcome: string): 'player' | 'enemy' | 'draw' {
 /**
  * Expands a roster into an explicit list of unit ids.
  *
- * Melee spawns before ranged so archers end up BEHIND the front line — which
- * is the whole point of the covered-archer scenario. Roster order within a
- * type follows the caller's count.
+ * RANGED FIRST, then melee. createWorld places units at
+ * `BASE_X + dir * (SPAWN_OFFSET + cursor)`, so a smaller cursor lands nearer
+ * the base. Listing ranged first therefore puts archers in the BACK rank and
+ * melee in front — the screen the whole R1/R2 design depends on. Listing melee
+ * first would present archers to the enemy and silently make the "screened"
+ * scenario measure the opposite of what it claims.
  */
 function expandRoster(roster: Partial<Record<UnitTypeId, number>>): UnitTypeId[] {
-  const order: UnitTypeId[] = ['swordsman', 'spearman', 'miner', 'archer'];
+  const order: UnitTypeId[] = ['archer', 'miner', 'spearman', 'swordsman'];
   const out: UnitTypeId[] = [];
   for (const typeId of order) {
     const count = roster[typeId] ?? 0;
