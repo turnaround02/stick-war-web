@@ -72,19 +72,35 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] 设计访谈完成（40 条决策，见 spec §13）
 - [x] 设计规格已写入 `docs/superpowers/specs/` 并通过评审
 - [x] 实施计划写入 `docs/superpowers/plans/2026-09-25-m1-skeleton.md`
-- [x] **M1 骨架**（分支 `m1-skeleton`，worktree 位于 `.worktrees/m1-skeleton`）
-- [ ] M2 移动与战斗
+- [x] **M1 骨架**（已合并至 `master`）
+- [ ] **M2 移动与战斗**
 - [ ] M3 经济与指令
 - [ ] M4 AI 与关卡
 - [ ] M5 打磨
 
-## M1 遗留事项（M2 开工前处理）
+## M2 开工前必须处理
 
-1. **单位时长仍是秒，尚未转 tick**。`data/units.ts` 的 `attackCooldown: 1.0` 等字段必须经 `toTicks()` 转换后才能存进 `cooldownTicksLeft`，否则游戏会快 30 倍。转换点应放在 `createWorld`（spec §5.1 要求「只转换一次」）。
-2. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`，M2 应删除并改由关卡数据驱动出生。
-3. **分离约束的排序比较器必须是全序**：`x` 相同时用 `unit.id` 决胜。`Array.prototype.sort` 的稳定性不是可依赖的正确性来源。
-4. **`World` 的确定性哈希**目前用 `JSON.stringify`，它依赖对象键插入顺序。M2 引入 `separation`/`combat` 后应换成真正的状态哈希。
+1. **单位时长仍是秒，尚未转 tick**。`data/units.ts` 的 `attackCooldown: 1.0` 等字段必须经 `toTicks()` 转换，否则游戏会快 30 倍。
+   - **转换点：在 `data/` 里建一张派生表 `UNIT_TICKS`**（模块加载时 `Math.round(s * 30)` 算一次），system 直接 import。
+   - **不要**放在 `createWorld`（它只构造世界，而 `attackCooldown` 是战斗时才读的，`World` 里没有单位定义表）。
+   - **不要**把 tick 值烤进每个 `Unit` 实例（每单位冗余）。
+   - `difficultyMult` 是**每局**的乘数，不能进静态表，属于 M4/M5。
+2. **分离约束的排序比较器必须是全序**：`x` 相同时用 `unit.id` 决胜。`Array.prototype.sort` 的稳定性不是可依赖的正确性来源。
+3. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`。M2 把它改成对撞演示，M4 改由关卡数据驱动出生。
+4. **确定性哈希**：M1 用 `JSON.stringify`，依赖对象键插入顺序且字段重排会假报差异。M2 换成 FNV-1a 真哈希。
 5. **`tick.test.ts` 的确定性测试目前近乎同义反复**（system 全是空实现）。M2 填充逻辑后它才会真正生效。
+
+## M2 关键设计（容易忘的）
+
+- **`retreat` 的让位权重最高（0.25）**：否则撤退单位被自己人卡死，`retreat` 完全失效。
+- **`attack` 可被推动（权重 1.0）**：若设为不可推动，密集阵型会形成「僵尸墙」，R2 的纵深设计失效。
+- **基地是让位权重 0 的不可移动障碍**，参与分离。
+- **前摇一旦开始必须走完**，出手瞬间才检查射程；超出则挥空。这是「后撤躲挥砍」的基础。
+- **目标可以是敌方基地**，用 `TargetRef` 判别联合表达。
+- **锁定用一对常量** `TARGET_ACQUIRE_RANGE=500` / `LOCK_BREAK_RANGE=700`（不是 `attackRange * 2.5`）。
+- **死亡动画在渲染层的幽灵精灵上**，sim 保持立即移除。
+- **胜负判定两个条件**：基地归零 或 某方单位归零（后者服务于无基地的 harness 场景）。
+- **`attack` 动画的接触帧必须落在 `phase = windupTicks / totalTicks`**，与伤害结算 tick 精确对齐。
 
 ## 工作方式
 
