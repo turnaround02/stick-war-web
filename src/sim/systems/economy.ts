@@ -1,13 +1,80 @@
 /**
- * Step 1 of 6: mining progress, gold income, population accounting, training
- * queue.
+ * Step 1 of 6: mining progress, gold income, population accounting.
  *
- * Still a stub after M2: M2's scope was movement and combat, and it spawns its
- * units directly via MatchConfig.initialUnits. Nothing consumes
- * World.trainingQueue yet — M3 owns the economy and must wire it up here.
+ * Runs FIRST so that gold earned this tick is available to the commands step
+ * in the same tick — a player who banks a load and immediately queues a unit
+ * should not wait an extra tick.
+ *
+ * The heavy lifting lives in sim/economy.ts as pure functions; this file only
+ * orchestrates them. The training queue is NOT advanced here yet — it arrives
+ * with sim/training.ts in the next task, and importing it before it exists
+ * would break this file's own green run.
  */
-import type { TickContext } from '../types';
 
-export function economySystem(_ctx: TickContext): void {
-  // M3: advance miner gather timers, bank carried gold, tick down the training queue.
+import { UNITS } from '../../data/units';
+import { UNIT_TICKS } from '../../data/unitTicks';
+import { advanceGather, tryBankGold } from '../economy';
+import { targetX } from '../targeting';
+import type { Side, TickContext, World } from '../types';
+
+/** How close to the mine counts as "arrived", in px. */
+const MINE_ARRIVAL_TOLERANCE = 8;
+
+export function economySystem(ctx: TickContext): void {
+  const { world } = ctx;
+
+  for (const unit of world.units) {
+    if (unit.typeId !== 'miner') continue;
+    if (unit.state === 'dead' || unit.hp <= 0) continue;
+
+    // Mining in progress: count it down, and on completion take the load.
+    if (unit.state === 'gather') {
+      advanceGather(world, unit);
+      if (unit.carrying > 0) {
+        // Loaded: head home. Expressing "home" as targeting our own base keeps
+        // `target` the single source of truth for where a unit is going.
+        unit.target = { kind: 'base', side: unit.side };
+      } else {
+        // The seam was dry. Do not loop a gather animation that produces
+        // nothing — that is the worst failure mode, because the animation
+        // says "working" while the treasury says otherwise.
+        unit.state = 'idle';
+        unit.target = null;
+      }
+      continue;
+    }
+
+    // In transit home with a load: bank it on arrival.
+    if (tryBankGold(world, unit)) {
+      unit.target = { kind: 'mine', side: unit.side };
+      continue;
+    }
+
+    // Arrived at the mine: start gathering.
+    if (unit.target !== null && unit.target.kind === 'mine') {
+      const mineX = targetX(world, unit.target);
+      if (mineX !== null && Math.abs(unit.x - mineX) <= MINE_ARRIVAL_TOLERANCE) {
+        unit.state = 'gather';
+        unit.gatherTicksLeft = UNIT_TICKS.miner.gatherTime;
+      }
+    }
+  }
+
+  recountPopulation(world);
+}
+
+/**
+ * Population is derived from the living units, so it can never drift.
+ *
+ * Dead units are skipped even though cleanup removes them at the end of the
+ * previous tick: a unit that reached hp <= 0 during this tick would otherwise
+ * be counted for one tick, and population is a spendable resource.
+ */
+function recountPopulation(world: World): void {
+  const counts: Record<Side, number> = { player: 0, enemy: 0 };
+  for (const unit of world.units) {
+    if (unit.state === 'dead' || unit.hp <= 0) continue;
+    counts[unit.side] += UNITS[unit.typeId].popCost;
+  }
+  world.popUsed = counts;
 }
