@@ -18,6 +18,7 @@
 import { BASE_RADIUS } from '../../data/constants';
 import { UNITS } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
+import { MINE_ARRIVAL_TOLERANCE } from '../economy';
 import { distanceToTarget, targetX } from '../targeting';
 import { separationSystem } from './separation';
 import type { TickContext, Unit } from '../types';
@@ -54,12 +55,20 @@ function integrate(ctx: TickContext, unit: Unit): void {
   }
 }
 
-/** Falls back toward the player's own base, stopping just outside it. */
+/**
+ * Falls back toward the unit's own base, stopping at its FRONT (the
+ * battlefield-facing edge).
+ *
+ * Not behind the base: with mines on the battlefield side, withdrawing units
+ * and miners would share a lane, and the base front is where the line is meant
+ * to re-form anyway. The sign matters — `+` puts the stop point on the
+ * battlefield side, `-` would put it behind the base.
+ */
 function integrateRetreat(ctx: TickContext, unit: Unit, speed: number, dir: number): void {
   if (unit.state === 'attack') return; // still swings while withdrawing
 
   const base = ctx.world.bases[unit.side];
-  const stopX = base.x - dir * (BASE_RADIUS + UNITS[unit.typeId].bodyRadius);
+  const stopX = base.x + dir * (BASE_RADIUS + UNITS[unit.typeId].bodyRadius);
   const delta = stopX - unit.x;
   if (Math.abs(delta) < 1e-9) return;
   // Never overshoot the stop line.
@@ -82,10 +91,41 @@ function integrateAdvance(
     return;
   }
 
+  // Miners navigate to POINTS, not to things with an attack range. Two
+  // differences from the generic path below:
+  //   - a mine is reached when the miner is at its X
+  //   - "home" for a miner is the base FRONT, where gold changes hands, not the
+  //     base edge that distanceToTarget measures to. Walking to the edge would
+  //     overshoot the banking point and the load would never be delivered.
+  if (unit.typeId === 'miner') {
+    const destX = minerDestinationX(ctx, unit);
+    if (destX !== null) {
+      const toTarget = destX - unit.x;
+      if (Math.abs(toTarget) <= MINE_ARRIVAL_TOLERANCE) return;
+      // Math.max(0, ...) matters: without it the remaining-distance-minus-tolerance
+      // goes negative near the target and the miner steps BACKWARD past it.
+      const travel = Math.min(speed, Math.max(0, Math.abs(toTarget) - MINE_ARRIVAL_TOLERANCE));
+      unit.x += Math.sign(toTarget) * travel;
+      return;
+    }
+  }
+
   const distance = distanceToTarget(ctx.world, unit);
   // Ranged units stop at their own range; melee closes to contact.
   if (distance <= attackRange) return;
 
   const step = Math.min(speed, distance - attackRange);
   unit.x += Math.sign(targetXPos - unit.x) * step;
+}
+
+/** Where a miner should walk to, or null if its target is not a navigation point. */
+function minerDestinationX(ctx: TickContext, unit: Unit): number | null {
+  const target = unit.target;
+  if (target === null) return null;
+  if (target.kind === 'mine') return ctx.world.mines[target.side].x;
+  if (target.kind === 'base') {
+    const dir = unit.side === 'player' ? 1 : -1;
+    return ctx.world.bases[target.side].x + dir * (BASE_RADIUS + UNITS[unit.typeId].bodyRadius);
+  }
+  return null;
 }

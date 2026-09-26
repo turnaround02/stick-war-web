@@ -32,12 +32,21 @@ export function economySystem(ctx: TickContext): void {
     // Mining in progress: count it down, and on completion take the load.
     if (unit.state === 'gather') {
       advanceGather(world, unit);
+      // Still mining. This early-out is load-bearing: `carrying` is 0 for the
+      // whole gather, so testing it directly would read "no load" as "the seam
+      // was dry" and abandon the trip on its first tick — the miner would then
+      // be sent back, re-enter gather, and loop forever without producing gold.
+      if (unit.gatherTicksLeft > 0) continue;
+
       if (unit.carrying > 0) {
         // Loaded: head home. Expressing "home" as targeting our own base keeps
         // `target` the single source of truth for where a unit is going.
         unit.target = { kind: 'base', side: unit.side };
+        // Leave `gather` as well, or movementSystem's early-out for that state
+        // keeps the miner planted at the seam while it carries a full load.
+        unit.state = 'move';
       } else {
-        // The seam was dry. Do not loop a gather animation that produces
+        // The seam really was dry. Do not loop a gather animation that produces
         // nothing — that is the worst failure mode, because the animation
         // says "working" while the treasury says otherwise.
         unit.state = 'idle';

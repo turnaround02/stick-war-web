@@ -7,9 +7,10 @@
  * the player's buttons (spec §9.1).
  */
 
+import { TARGET_ACQUIRE_RANGE } from '../../data/constants';
 import { UNITS } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
-import { acquireTarget, distanceToTarget, shouldKeepTarget } from '../targeting';
+import { acquireTarget, distanceToTarget, isTargetAlive, shouldKeepTarget } from '../targeting';
 import type { TickContext, Unit } from '../types';
 
 export function aiSystem(ctx: TickContext): void {
@@ -22,6 +23,12 @@ export function aiSystem(ctx: TickContext): void {
       continue;
     }
 
+    // Miners run a different rule set: their job is the seam, not the fight.
+    if (unit.typeId === 'miner') {
+      updateMiner(ctx, unit);
+      continue;
+    }
+
     // A retreating unit never seeks new targets; it keeps what it has so it can
     // fight back while withdrawing (spec §6.3).
     const keep = shouldKeepTarget(ctx.world, unit);
@@ -31,6 +38,70 @@ export function aiSystem(ctx: TickContext): void {
 
     decideState(ctx, unit);
   }
+}
+
+/**
+ * Miners have three priorities (spec §6.3.1):
+ *   1. an enemy nearby while retreating -> run home, abandoning the trip
+ *   2. an enemy nearby otherwise         -> keep mining
+ *   3. no enemy                          -> mine
+ *
+ * Priority 2 matters because a miner's attack is 0: switching it into a combat
+ * state would only make it stand still and be killed. Its one defence is
+ * retreat, which is exactly the lever the player has.
+ *
+ * The miner's STANCE is derived from its job rather than left as the player
+ * set it. createWorld spawns starting miners on 'hold', and movementSystem
+ * returns early for 'hold' — a miner that acquired a mine target but stayed on
+ * hold would never move and the economy would never start. `retreat` is the
+ * one stance that stays player-owned, because fleeing is a real order.
+ */
+function updateMiner(ctx: TickContext, unit: Unit): void {
+  // Gathering is the one state the miner holds on its own; economySystem owns
+  // the transition out of it.
+  if (unit.state === 'gather') return;
+
+  const enemyNear = nearestEnemyDistance(ctx, unit) <= TARGET_ACQUIRE_RANGE;
+
+  if (enemyNear && unit.stance === 'retreat') {
+    unit.target = { kind: 'base', side: unit.side };
+    unit.stance = 'advance'; // so movementSystem actually integrates the move
+    transition(ctx, unit, 'move');
+    return;
+  }
+
+  // Keep (or resume) the mining trip — but never clobber a valid target.
+  // The go-home leg is expressed as a base target, and overwriting it with the
+  // mine every tick would make the miner oscillate between the two and never
+  // bank anything.
+  const targetValid = unit.target !== null && isTargetAlive(ctx.world, unit.target);
+  if (!targetValid) {
+    const mine = { kind: 'mine', side: unit.side } as const;
+    // A depleted seam is a dead end: go idle rather than loop an animation
+    // that produces nothing.
+    unit.target = isTargetAlive(ctx.world, mine) ? mine : null;
+  }
+
+  if (unit.target === null) {
+    unit.stance = 'hold';
+    transition(ctx, unit, 'idle');
+    return;
+  }
+
+  unit.stance = 'advance';
+  transition(ctx, unit, 'move');
+}
+
+/** Distance to the closest living enemy unit, or Infinity when there is none. */
+function nearestEnemyDistance(ctx: TickContext, unit: Unit): number {
+  let best = Infinity;
+  for (const other of ctx.world.units) {
+    if (other.side === unit.side) continue;
+    if (other.state === 'dead' || other.hp <= 0) continue;
+    const d = Math.abs(other.x - unit.x);
+    if (d < best) best = d;
+  }
+  return best;
 }
 
 function decideState(ctx: TickContext, unit: Unit): void {
