@@ -112,4 +112,17 @@ export default tseslint.config(
       'no-restricted-syntax': ['error', ...PHASER4_TRAP_SELECTORS],
     },
   },
+
+  // ── 测试文件：解除确定性禁令 ──────────────────────────────────
+  // The determinism rules protect the SIMULATION from non-determinism, so they
+  // cannot affect replay. A test measuring its own wall-clock runtime is not
+  // part of the simulation. Narrowing the rule here keeps it meaningful
+  // everywhere it matters; a guard that forbids a legitimate use teaches
+  // people to route around the guard instead.
+  {
+    files: ['src/**/*.test.ts'],
+    rules: {
+      'no-restricted-properties': 'off',
+    },
+  },
 );

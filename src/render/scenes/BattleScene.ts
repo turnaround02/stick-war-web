@@ -1,14 +1,25 @@
 import Phaser from 'phaser';
 import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
 import { RENDER_DEMO_MATCH, RENDER_DEMO_SEED } from '../../data/levels';
+import { UNIT_TICKS } from '../../data/unitTicks';
+import type { UnitTypeId } from '../../data/units';
 import { createWorld } from '../../sim/createWorld';
 import { step } from '../../sim/tick';
-import type { Side, World } from '../../sim/types';
+import type { Side, Unit, UnitState, World } from '../../sim/types';
 import { FixedTimestep } from '../timestep';
+import { spawnGhost } from '../ghost';
+import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
 const GROUND_FRACTION = 2 / 3;
+
+/** Loop length per state, in ticks, for the states that cycle. */
+const STATE_CYCLE_TICKS: Partial<Record<UnitState, number>> = {
+  idle: 60,
+  move: 24,
+  gather: 30,
+};
 
 /**
  * Owns the Phaser side of the game: camera, drawing, and the fixed-timestep
@@ -21,6 +32,11 @@ export class BattleScene extends Phaser.Scene {
   private stickmen = new Map<number, Stickman>();
   private timestep = new FixedTimestep();
   private tickLabel!: Phaser.GameObjects.Text;
+  private projectiles!: ProjectileLayer;
+
+  /** Last known appearance per unit, so a ghost can be spawned after removal. */
+  private lastTypeId = new Map<number, UnitTypeId>();
+  private lastFacing = new Map<number, 1 | -1>();
 
   constructor() {
     super({ key: 'Battle' });
@@ -30,8 +46,8 @@ export class BattleScene extends Phaser.Scene {
     this.world = createWorld(RENDER_DEMO_MATCH, RENDER_DEMO_SEED);
 
     this.groundLine = this.add.graphics();
+    this.projectiles = createProjectileLayer(this);
 
-    // Bring the sim and the view of it up together.
     this.syncStickmen();
     this.layout();
 
@@ -45,6 +61,10 @@ export class BattleScene extends Phaser.Scene {
     // Scene restart would otherwise stack a second listener and leak this one.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', onResize);
+    });
+
+    this.input.keyboard?.on('keydown-R', () => {
+      this.scene.restart();
     });
   }
 
@@ -67,11 +87,10 @@ export class BattleScene extends Phaser.Scene {
     }
 
     this.syncStickmen();
+    this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
 
     if (ticks > 0) {
-      this.tickLabel.setText(
-        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz logic`,
-      );
+      this.tickLabel.setText(`tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz logic`);
     }
   }
 
@@ -87,6 +106,7 @@ export class BattleScene extends Phaser.Scene {
     this.cameras.main.setScroll(0, 0);
 
     this.drawGround();
+    this.projectiles.setGroundY(this.groundY);
     this.syncStickmen();
   }
 
@@ -102,15 +122,19 @@ export class BattleScene extends Phaser.Scene {
     this.groundLine.lineStyle(2, 0x5b6472, 1);
     this.groundLine.lineBetween(0, this.groundY, WORLD_WIDTH, this.groundY);
 
-    // Base markers, so camera movement is legible before units exist.
+    // Base markers, so camera movement is legible.
     this.drawBaseMarker('player', 0x3f7fd0);
     this.drawBaseMarker('enemy', 0xd05a3f);
   }
 
   private drawBaseMarker(side: Side, color: number): void {
     const base = this.world.bases[side];
+    const healthFraction = base.maxHp > 0 ? Math.max(0, base.hp / base.maxHp) : 0;
     this.groundLine.fillStyle(color, 0.6);
     this.groundLine.fillRect(base.x - 20, this.groundY - 60, 40, 60);
+    // A brighter core that shrinks as the base takes damage.
+    this.groundLine.fillStyle(0xffffff, 0.25 * healthFraction);
+    this.groundLine.fillRect(base.x - 20, this.groundY - 60, 40, 60 * healthFraction);
   }
 
   /** Creates or removes stickmen so the view matches the sim's unit list exactly. */
@@ -124,18 +148,47 @@ export class BattleScene extends Phaser.Scene {
         stickman = createStickman(this, unit.typeId);
         this.stickmen.set(unit.id, stickman);
       }
+
       const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
       stickman.container.setPosition(x, this.groundY - STICKMAN_HIP_HEIGHT);
-      // M2: derive phase from (world.tick - unit.stateEnteredTick) / stateDuration
-      // so limbs animate; M1's poses ignore the phase argument.
-      stickman.apply(unit.state, 0);
+      stickman.setFacing(unit.side === 'player' ? 1 : -1);
+      stickman.apply(unit.state, this.phaseOf(unit));
     }
 
+    // Anything that vanished died this tick: animate a ghost at its last spot.
     for (const [id, stickman] of this.stickmen) {
-      if (!alive.has(id)) {
-        stickman.destroy();
-        this.stickmen.delete(id);
+      if (alive.has(id)) continue;
+      const ghostX = stickman.container.x;
+      stickman.destroy();
+      this.stickmen.delete(id);
+
+      const typeId = this.lastTypeId.get(id);
+      if (typeId) {
+        spawnGhost(this, ghostX, this.groundY, typeId, this.lastFacing.get(id) ?? 1);
       }
+      this.lastTypeId.delete(id);
+      this.lastFacing.delete(id);
     }
+
+    for (const unit of this.world.units) {
+      this.lastTypeId.set(unit.id, unit.typeId);
+      this.lastFacing.set(unit.id, unit.side === 'player' ? 1 : -1);
+    }
+  }
+
+  /**
+   * Animation phase for a unit, 0..1.
+   *
+   * For `attack` this is windup progress, NOT time in state, so the contact
+   * keyframe lands on the same tick the damage is applied (spec §7.1).
+   */
+  private phaseOf(unit: Unit): number {
+    if (unit.state === 'attack') {
+      const total = UNIT_TICKS[unit.typeId].windup;
+      if (total <= 0) return 0;
+      return 1 - unit.windupTicksLeft / total;
+    }
+    const cycle = STATE_CYCLE_TICKS[unit.state] ?? 30;
+    return ((this.world.tick - unit.stateEnteredTick) % cycle) / cycle;
   }
 }

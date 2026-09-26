@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { TICK_SYSTEMS, step } from './tick';
 import { createWorld } from './createWorld';
+import { hashWorld } from './hash';
 import { DEFAULT_MATCH } from '../data/levels';
 
 describe('TICK_SYSTEMS order', () => {
@@ -53,7 +54,7 @@ describe('step', () => {
     const runOnce = () => {
       const world = createWorld({ ...DEFAULT_MATCH, startMiners: { player: 3, enemy: 3 } }, 999);
       for (let i = 0; i < 120; i++) step(world, []);
-      return JSON.stringify(world);
+      return hashWorld(world);
     };
     expect(runOnce()).toBe(runOnce());
   });
@@ -69,7 +70,12 @@ describe('step', () => {
   });
 
   it('leaves outcome ongoing during a quiet skirmish', () => {
-    const world = createWorld(DEFAULT_MATCH, 1);
+    // Both sides need at least one unit: a zero-unit world is a mutual wipe
+    // and cleanupSystem resolves it to playerLose on the first tick (spec §6.6).
+    const world = createWorld(
+      { ...DEFAULT_MATCH, initialUnits: { player: ['swordsman'], enemy: ['swordsman'] } },
+      1,
+    );
     for (let i = 0; i < 300; i++) step(world, []);
     expect(world.outcome).toBe('ongoing');
   });
