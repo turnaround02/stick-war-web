@@ -20,6 +20,16 @@ export type UnitState = 'idle' | 'move' | 'gather' | 'attack' | 'stunned' | 'dea
 /** Tactical posture. The only way to move units — there is no click-to-move (spec §4.2). */
 export type Stance = 'advance' | 'hold' | 'retreat';
 
+/**
+ * What a unit is currently attacking. A discriminated union rather than a
+ * numeric id so the type system forces every consumer to handle bases —
+ * units attacking the enemy base is core gameplay, not an edge case.
+ */
+export type TargetRef =
+  | { kind: 'unit'; id: number }
+  | { kind: 'base'; side: Side }
+  | null;
+
 export interface Unit {
   id: number;
   side: Side;
@@ -34,7 +44,7 @@ export interface Unit {
   stateEnteredTick: number;
   stance: Stance;
   /** Locked target. Null when idle with no target (spec §6.4). */
-  targetId: number | null;
+  target: TargetRef;
   /** Wind-up ticks remaining. 0 means the unit may strike. Sync point for animation + sfx. */
   windupTicksLeft: number;
   /** Attack cooldown ticks remaining. */
@@ -65,10 +75,18 @@ export interface Projectile {
   id: number;
   side: Side;
   x: number;
+  /** X at the start of this tick. Used ONLY by the renderer for interpolation. */
+  prevX: number;
   targetId: number;
   damage: number;
   /** Ticks until the projectile lands and resolves damage. */
   ticksToImpact: number;
+}
+
+/** Per-side accumulators for the balance harness (spec §6.7). */
+export interface SideStats {
+  /** Total damage this side has dealt to the other side's units and base. */
+  damageDealt: number;
 }
 
 export type Outcome = 'ongoing' | 'playerWin' | 'playerLose';
@@ -87,6 +105,8 @@ export interface World {
   popUsed: Record<Side, number>;
   popCap: Record<Side, number>;
   trainingQueue: Record<Side, TrainingOrder[]>;
+  /** Per-side combat accumulators. Serialised with the world. */
+  stats: Record<Side, SideStats>;
   /** Index of the next wave to spawn (scripted levels). */
   waveIndex: number;
   /** Tick at which the next wave should spawn. */
