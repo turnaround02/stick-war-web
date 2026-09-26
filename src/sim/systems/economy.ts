@@ -1,21 +1,23 @@
 /**
- * Step 1 of 6: mining progress, gold income, population accounting.
+ * Step 1 of 6: mining progress, gold income, population accounting, and the
+ * training queue.
  *
  * Runs FIRST so that gold earned this tick is available to the commands step
  * in the same tick — a player who banks a load and immediately queues a unit
  * should not wait an extra tick.
  *
- * The heavy lifting lives in sim/economy.ts as pure functions; this file only
- * orchestrates them. The training queue is NOT advanced here yet — it arrives
- * with sim/training.ts in the next task, and importing it before it exists
- * would break this file's own green run.
+ * The heavy lifting lives in sim/economy.ts and sim/training.ts as pure
+ * functions; this file only orchestrates them.
  */
 
 import { UNITS } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import { advanceGather, tryBankGold } from '../economy';
 import { targetX } from '../targeting';
+import { advanceTrainingQueue } from '../training';
 import type { Side, TickContext, World } from '../types';
+
+const SIDES: readonly Side[] = ['player', 'enemy'];
 
 /** How close to the mine counts as "arrived", in px. */
 const MINE_ARRIVAL_TOLERANCE = 8;
@@ -58,6 +60,10 @@ export function economySystem(ctx: TickContext): void {
         unit.gatherTicksLeft = UNIT_TICKS.miner.gatherTime;
       }
     }
+  }
+
+  for (const side of SIDES) {
+    advanceTrainingQueue(world, side);
   }
 
   recountPopulation(world);

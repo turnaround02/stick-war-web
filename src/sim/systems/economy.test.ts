@@ -166,3 +166,30 @@ describe('economySystem — population accounting', () => {
     expect(world.popUsed.player).toBe(1);
   });
 });
+
+describe('economySystem — training queue integration', () => {
+  it('counts a unit spawned this tick in the same tick', () => {
+    // recountPopulation must run AFTER the queue advances, or a unit that
+    // appears this tick is not counted until the next one — and population is
+    // a spendable resource, so a one-tick lag lets a player over-queue.
+    const world = makeWorld([]);
+    world.gold.player = 500;
+    world.trainingQueue.player.push({ typeId: 'swordsman', ticksLeft: 1 });
+
+    economySystem(ctx(world));
+
+    expect(world.units).toHaveLength(1);
+    expect(world.popUsed.player).toBe(1);
+  });
+
+  it('advances the queue for both sides', () => {
+    const world = makeWorld([]);
+    world.trainingQueue.player.push({ typeId: 'miner', ticksLeft: 1 });
+    world.trainingQueue.enemy.push({ typeId: 'archer', ticksLeft: 1 });
+
+    economySystem(ctx(world));
+
+    expect(world.units.filter((u) => u.side === 'player')).toHaveLength(1);
+    expect(world.units.filter((u) => u.side === 'enemy')).toHaveLength(1);
+  });
+});
