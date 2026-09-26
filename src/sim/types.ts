@@ -10,15 +10,12 @@
  */
 
 import type { ArmorType, UnitTypeId } from '../data/units';
-import type { MatchConfig, Side, WaveScript } from '../data/types';
+import type { MatchConfig, Side, Stance, WaveScript } from '../data/types';
 
-export type { ArmorType, MatchConfig, Side, UnitTypeId, WaveScript };
+export type { ArmorType, MatchConfig, Side, Stance, UnitTypeId, WaveScript };
 
 /** Reserved: `stunned` has no producer in v1 but is the mount point for future control effects. */
 export type UnitState = 'idle' | 'move' | 'gather' | 'attack' | 'stunned' | 'dead';
-
-/** Tactical posture. The only way to move units — there is no click-to-move (spec §4.2). */
-export type Stance = 'advance' | 'hold' | 'retreat';
 
 /**
  * What a unit is currently attacking. A discriminated union rather than a

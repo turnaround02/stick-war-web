@@ -13,6 +13,13 @@ import type { UnitTypeId } from './units';
 
 export type Side = 'player' | 'enemy';
 
+/**
+ * Tactical posture. The only way to move units — there is no click-to-move
+ * (spec §4.2). Lives here rather than in sim/ so MatchConfig can name it
+ * without data/ importing from sim/.
+ */
+export type Stance = 'advance' | 'hold' | 'retreat';
+
 /** One scheduled enemy spawn (spec §8.4). */
 export interface WaveScript {
   /** Tick at which this wave spawns. */
@@ -37,4 +44,35 @@ export interface MatchConfig {
   endless: boolean;
   /** Multiplier applied to enemy HP and attack. 1 = no scaling. */
   difficultyMult: number;
+
+  /**
+   * Explicit starting roster, listed as type ids. Takes precedence over
+   * startMiners when present. Used by the balance harness to build arbitrary
+   * matchups without inventing a level file per scenario.
+   */
+  initialUnits?: {
+    player?: UnitTypeId[];
+    enemy?: UnitTypeId[];
+  };
+
+  /** Gap between same-side units when spawning a roster, in px. */
+  initialSpacing?: number;
+
+  /**
+   * Posture for roster-spawned units. Defaults to `advance`, because an
+   * explicit roster means "these units are meant to fight"; requiring every
+   * caller to remember a stance fails silently (a draw at maxTicks, not an
+   * error). Miners spawned from startMiners always default to `hold`.
+   */
+  initialStance?: Stance;
+
+  /**
+   * Parks both bases outside the battlefield so no unit can ever reach them.
+   * Used by the harness for base-less matchups: the bases stay at full hp, so
+   * cleanupSystem's "base fell" condition never fires and the match is decided
+   * purely by which side runs out of units.
+   *
+   * (Setting baseHp to 0 instead would end every such match on tick 1.)
+   */
+  noBases?: boolean;
 }
