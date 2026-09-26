@@ -5,6 +5,7 @@ import { hashWorld } from './hash';
 import { step } from './tick';
 import { DEFAULT_MATCH } from '../data/levels';
 import type { Scenario } from './harness';
+import type { MatchConfig } from './types';
 
 /**
  * spec §11 M2 acceptance, as executable criteria.
@@ -22,7 +23,7 @@ const clash: Scenario = {
 
 describe('M2 acceptance 1: units engage automatically', () => {
   it('produces first blood within 400 ticks from a 600px gap', () => {
-    const config = {
+    const config: MatchConfig = {
       ...DEFAULT_MATCH,
       startMiners: { player: 0, enemy: 0 },
       initialUnits: {
@@ -96,7 +97,7 @@ describe('M2 acceptance 3: results are reproducible', () => {
   it('hashes identically after a step-by-step replay', () => {
     // The strongest form: drive the sim manually and confirm the hash matches
     // the harness's, proving the harness adds no hidden state.
-    const config = {
+    const config: MatchConfig = {
       ...DEFAULT_MATCH,
       startMiners: { player: 0, enemy: 0 },
       initialUnits: {
