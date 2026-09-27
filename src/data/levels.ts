@@ -34,32 +34,29 @@ export const DEFAULT_MATCH: MatchConfig = {
 };
 
 /**
- * TEMPORARY (M2): a symmetric collision demo so the render pipeline can be
- * watched. Both sides advance and meet in the middle. M4 replaces this with
- * level-driven spawns.
+ * TEMPORARY (M3): a complete playable skirmish — a base, a mine, three
+ * starting miners, and enough gold to make a first choice. The enemy advances
+ * with M2's stance system; M4 replaces this with level-driven data and a real
+ * AI.
+ *
+ * The enemy's standing force is a small push to fight against, so the player
+ * has something to train AGAINST rather than an empty field. Archers are listed
+ * first so they spawn nearer the enemy base and end up behind the swordsmen
+ * (createWorld places a smaller cursor closer to home).
  */
 export const RENDER_DEMO_MATCH: MatchConfig = {
   ...DEFAULT_MATCH,
   levelId: 'render-demo',
-  startMiners: { player: 0, enemy: 0 },
+  startGold: { player: 200, enemy: 200 },
+  startMiners: { player: 3, enemy: 3 },
   initialUnits: {
-    // Archers are listed FIRST so they spawn nearest the base and end up
-    // behind the swordsmen — createWorld places a smaller cursor closer to
-    // home, so the back rank must come first in this list. R1/R2 (arrows pass
-    // through allies, front ranks do not block the back) only mean anything
-    // if the archers are actually screened.
-    player: [
-      'archer', 'archer', 'archer',
-      'swordsman', 'swordsman', 'swordsman', 'swordsman', 'swordsman', 'swordsman',
-    ],
-    enemy: [
-      'archer', 'archer', 'archer',
-      'swordsman', 'swordsman', 'swordsman', 'swordsman', 'swordsman', 'swordsman',
-    ],
+    player: [],
+    enemy: ['archer', 'archer', 'swordsman', 'swordsman', 'swordsman'],
   },
+  initialStance: 'advance',
 };
 
-/** TEMPORARY (M2): fixed seed for the render demo, so screenshots are repeatable. */
+/** TEMPORARY (M3): fixed seed for the render demo, so screenshots are repeatable. */
 export const RENDER_DEMO_SEED = 20260926;
 
 /** Positions used by createWorld. Kept here so geometry has one source of truth. */

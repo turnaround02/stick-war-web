@@ -3,10 +3,13 @@ import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
 import { RENDER_DEMO_MATCH, RENDER_DEMO_SEED } from '../../data/levels';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { UnitTypeId } from '../../data/units';
+import { CommandQueue, KeyState, setStance as cmdSetStance, train as cmdTrain } from '../../input/desktop';
 import { createWorld } from '../../sim/createWorld';
-import { step } from '../../sim/tick';
-import type { Side, Unit, UnitState, World } from '../../sim/types';
-import { FixedTimestep } from '../timestep';
+import type { Side, Stance, Unit, UnitState, World } from '../../sim/types';
+import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
+import { createHud, type Hud } from '../hud';
+import { Selection, selectedIdsOf } from '../selection';
+import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
@@ -34,6 +37,14 @@ export class BattleScene extends Phaser.Scene {
   private tickLabel!: Phaser.GameObjects.Text;
   private projectiles!: ProjectileLayer;
 
+  private commands = new CommandQueue();
+  private keys = new KeyState();
+  private selection = new Selection();
+  private selectedMarker!: Phaser.GameObjects.Graphics;
+  private hud!: Hud;
+  private speed: GameSpeed = 1;
+  private paused = false;
+
   /** Last known appearance per unit, so a ghost can be spawned after removal. */
   private lastTypeId = new Map<number, UnitTypeId>();
   private lastFacing = new Map<number, 1 | -1>();
@@ -43,16 +54,41 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Scene.restart() reuses this instance, so every mutable field must be
+    // reset here. Without this, pressing R after pausing starts the new match
+    // still paused, and stale selection/keys survive into it.
     this.world = createWorld(RENDER_DEMO_MATCH, RENDER_DEMO_SEED);
+    this.timestep = new FixedTimestep();
+    this.commands = new CommandQueue();
+    this.keys = new KeyState();
+    this.selection = new Selection();
+    this.speed = 1;
+    this.paused = false;
+    this.stickmen.clear();
+    this.lastTypeId.clear();
+    this.lastFacing.clear();
 
     this.groundLine = this.add.graphics();
     this.projectiles = createProjectileLayer(this);
+    this.selectedMarker = this.add.graphics().setDepth(6);
+
+    this.hud = createHud(this, 'player', {
+      onTrain: (typeId: UnitTypeId) => this.commands.push(cmdTrain('player', typeId)),
+      onStance: (stance: Stance) => this.pushStanceToAll(stance),
+      onSpeedChange: (speed: GameSpeed) => {
+        this.speed = speed;
+        this.hud.setSpeed(speed);
+      },
+    });
+    // Highlight the initial speed so the buttons do not all look inactive on load.
+    this.hud.setSpeed(this.speed);
 
     this.syncStickmen();
     this.layout();
+    this.setupInput();
 
     this.tickLabel = this.add
-      .text(12, 12, '', { fontFamily: 'monospace', fontSize: '16px', color: '#9aa4b2' })
+      .text(12, 44, '', { fontFamily: 'monospace', fontSize: '13px', color: '#9aa4b2' })
       .setScrollFactor(0)
       .setDepth(1000);
 
@@ -61,11 +97,122 @@ export class BattleScene extends Phaser.Scene {
     // Scene restart would otherwise stack a second listener and leak this one.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', onResize);
+      this.hud.destroy();
     });
 
     this.input.keyboard?.on('keydown-R', () => {
       this.scene.restart();
     });
+  }
+
+  /** Wires keyboard, pointer and wheel to input state and the command queue. */
+  private setupInput(): void {
+    const kb = this.input.keyboard;
+    if (kb) {
+      kb.on('keydown', (e: KeyboardEvent) => {
+        // Browsers auto-repeat held keys; without this, holding Space flickers
+        // pause and holding R restarts every repeat.
+        if (e.repeat) return;
+
+        this.keys.update(e.code, true);
+        // Stance hotkeys act on the SELECTION; with nothing selected they fall
+        // back to the whole army, which is what the Q/W/E muscle memory wants.
+        if (e.code === 'KeyQ') this.pushStance('advance');
+        if (e.code === 'KeyW') this.pushStance('hold');
+        if (e.code === 'KeyE') this.pushStance('retreat');
+        if (e.code === 'Space') this.paused = !this.paused;
+      });
+      kb.on('keyup', (e: KeyboardEvent) => this.keys.update(e.code, false));
+    }
+
+    // A key released while the window is unfocused never fires keyup, so the
+    // camera would scroll forever. Clearing on blur is the cheap fix.
+    this.game.events.on(Phaser.Core.Events.BLUR, () => this.keys.clear());
+
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
+    this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
+      const cam = this.cameras.main;
+      cam.setZoom(clampZoom(cam.zoom - dy * 0.001));
+      this.clampCamera();
+    });
+  }
+
+  /** Selects the unit under the pointer, or clears the selection on empty ground. */
+  private handleClick(pointer: Phaser.Input.Pointer): void {
+    // HUD clicks are handled by the interactive objects themselves; ignoring
+    // them here stops a button press from also clearing the selection.
+    const cam = this.cameras.main;
+    const hudTop = this.scale.height - 64;
+    if (pointer.y >= hudTop) return;
+    if (pointer.y <= 56 && (pointer.x <= 240 || pointer.x >= this.scale.width - 240)) return;
+
+    // Phaser's own inverse. Hand-rolling `pointer.x / zoom + scrollX` is wrong
+    // once zoom != 1: with originX 0.5 the camera overhangs the origin by
+    // (W/z - W)/2, so the error is 427 world px at 0.6x and 107 at 1.2x — a
+    // click would select a unit far to its right, or nothing at all.
+    const worldX = cam.getWorldPoint(pointer.x, pointer.y).x;
+    const hit = this.world.units.find(
+      (u) => u.side === 'player' && u.state !== 'dead' && Math.abs(u.x - worldX) <= 20,
+    );
+
+    if (hit) this.selection.select(hit.id);
+    else this.selection.clear();
+  }
+
+  /** Stance order for the selection, or the whole army when nothing is selected. */
+  private pushStance(stance: Stance): void {
+    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
+    if (selected.length > 0) {
+      this.commands.push(cmdSetStance('player', selected, stance));
+      return;
+    }
+    this.pushStanceToAll(stance);
+  }
+
+  private pushStanceToAll(stance: Stance): void {
+    const ids = this.world.units
+      .filter((u) => u.side === 'player' && u.state !== 'dead')
+      .map((u) => u.id);
+    if (ids.length === 0) return;
+    this.commands.push(cmdSetStance('player', ids, stance));
+  }
+
+  /** Scrolls by keyboard and viewport edge, then clamps to the world. */
+  private updateCamera(delta: number): void {
+    const cam = this.cameras.main;
+    const kbDir = this.keys.scrollDir();
+
+    const pointer = this.input.activePointer;
+    let edgeDir: -1 | 0 | 1 = 0;
+    if (pointer.x <= EDGE_SCROLL_MARGIN) edgeDir = -1;
+    else if (pointer.x >= this.scale.width - EDGE_SCROLL_MARGIN) edgeDir = 1;
+
+    const dir = kbDir !== 0 ? kbDir : edgeDir;
+    if (dir !== 0) {
+      // px per ms, scaled by zoom so the on-screen speed feels constant.
+      cam.setScroll(cam.scrollX + (dir * 0.9 * delta) / cam.zoom, cam.scrollY);
+    }
+    this.clampCamera();
+  }
+
+  private clampCamera(): void {
+    const cam = this.cameras.main;
+    cam.setZoom(clampZoom(cam.zoom));
+    cam.setScroll(clampScrollX(cam.scrollX, WORLD_WIDTH, this.scale.width, cam.zoom), cam.scrollY);
+  }
+
+  /** Draws an ellipse under each selected unit. */
+  private drawSelectionMarkers(): void {
+    const g = this.selectedMarker;
+    g.clear();
+    if (this.selection.size === 0) return;
+
+    g.lineStyle(2, 0xffffff, 0.75);
+    for (const unit of this.world.units) {
+      if (!this.selection.has(unit.id)) continue;
+      const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
+      g.strokeEllipse(x, this.groundY - 1, 34, 10);
+    }
   }
 
   /**
@@ -80,17 +227,24 @@ export class BattleScene extends Phaser.Scene {
    * interpolation would never actually happen.
    */
   update(_time: number, delta: number): void {
-    const ticks = this.timestep.advance(delta);
+    this.updateCamera(delta);
 
-    for (let i = 0; i < ticks; i++) {
-      step(this.world, []);
-    }
+    // Render-only work runs even while paused: a pause must freeze the
+    // simulation, not the interface. Skipping this would leave a click made
+    // while paused invisible until the player resumed.
+    const ticks = this.paused
+      ? 0
+      : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
 
     this.syncStickmen();
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
+    this.drawSelectionMarkers();
+    this.hud.sync(this.world);
 
-    if (ticks > 0) {
-      this.tickLabel.setText(`tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz logic`);
+    if (ticks > 0 || this.paused) {
+      this.tickLabel.setText(
+        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}`,
+      );
     }
   }
 
@@ -99,15 +253,20 @@ export class BattleScene extends Phaser.Scene {
    * resize. The sim is deliberately unaware of any of this.
    */
   private layout(): void {
-    const { height } = this.scale;
+    const { width, height } = this.scale;
     this.groundY = Math.round(height * GROUND_FRACTION);
 
+    // Bounds are in WORLD units and do NOT depend on zoom: Phaser multiplies
+    // the camera's own clamping by zoom itself, so the visible area stays
+    // inside the world at every zoom level.
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, height);
     this.cameras.main.setScroll(0, 0);
+    this.cameras.main.setZoom(1);
 
     this.drawGround();
     this.projectiles.setGroundY(this.groundY);
     this.syncStickmen();
+    this.hud.layout(width, height);
   }
 
   /** Draws the ground line and the base markers. Camera-agnostic: world coords only. */

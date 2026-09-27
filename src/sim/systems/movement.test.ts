@@ -2,6 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { movementSystem } from './movement';
 import { spawnUnit } from '../spawn';
 import { UNIT_TICKS } from '../../data/unitTicks';
+import { createWorld } from '../createWorld';
+import { step } from '../tick';
+import { DEFAULT_MATCH } from '../../data/levels';
 import type { TickContext, Unit, World } from '../types';
 
 function makeWorld(units: Unit[]): World {
@@ -15,8 +18,8 @@ function makeWorld(units: Unit[]): World {
       enemy: { side: 'enemy', x: 2700, hp: 3000, maxHp: 3000 },
     },
     mines: {
-      player: { side: 'player', x: 50, goldLeft: 0 },
-      enemy: { side: 'enemy', x: 2950, goldLeft: 0 },
+      player: { side: 'player', x: 550, goldLeft: 6000 },
+      enemy: { side: 'enemy', x: 2450, goldLeft: 6000 },
     },
     projectiles: [],
     nextProjectileId: 1,
@@ -175,5 +178,118 @@ describe('movementSystem', () => {
       movementSystem(ctx(b));
     }
     expect(a.units.map((u) => u.x.toFixed(6))).toEqual(b.units.map((u) => u.x.toFixed(6)));
+  });
+});
+
+describe('movementSystem — miners', () => {
+  it('walks a miner toward its mine', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 400 });
+    m.state = 'move';
+    m.stance = 'advance';
+    m.target = { kind: 'mine', side: 'player' };
+    const world = makeWorld([m]);
+    movementSystem(ctx(world));
+    expect(m.x).toBeGreaterThan(400);
+  });
+
+  it('does not move a gathering miner', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 550 });
+    m.state = 'gather';
+    m.stance = 'advance';
+    m.target = { kind: 'mine', side: 'player' };
+    const world = makeWorld([m]);
+    movementSystem(ctx(world));
+    expect(m.x).toBe(550);
+  });
+
+  it('walks a loaded miner back toward its base', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500 });
+    m.carrying = 20;
+    m.state = 'move';
+    m.stance = 'advance';
+    m.target = { kind: 'base', side: 'player' };
+    const world = makeWorld([m]);
+    movementSystem(ctx(world));
+    expect(m.x).toBeLessThan(500);
+  });
+
+  it('stops a miner at the mine instead of walking past it', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 548 });
+    m.state = 'move';
+    m.stance = 'advance';
+    m.target = { kind: 'mine', side: 'player' };
+    const world = makeWorld([m]);
+    for (let i = 0; i < 30; i++) movementSystem(ctx(world));
+    // A miner has attackRange 0, so integrateAdvance would otherwise keep
+    // walking until it sat exactly on the mine's X and then oscillate.
+    expect(Math.abs(m.x - 550)).toBeLessThanOrEqual(8);
+  });
+});
+
+describe('movementSystem — retreat stop point', () => {
+  it('retreats to the base FRONT, not behind it', () => {
+    // Behind the base would put withdrawing units in the miners' lane.
+    const a = spawnUnit({ id: 1, side: 'player', typeId: 'swordsman', x: 800, stance: 'retreat' });
+    a.state = 'move';
+    const world = makeWorld([a]);
+    for (let i = 0; i < 200; i++) movementSystem(ctx(world));
+    // base 300 + BASE_RADIUS 40 + swordsman 14 = 354
+    expect(a.x).toBeGreaterThan(300);
+    expect(a.x).toBeCloseTo(354, 0);
+  });
+
+  it('mirrors for the enemy side', () => {
+    const a = spawnUnit({ id: 1, side: 'enemy', typeId: 'swordsman', x: 2200, stance: 'retreat' });
+    a.state = 'move';
+    const world = makeWorld([a]);
+    for (let i = 0; i < 200; i++) movementSystem(ctx(world));
+    expect(a.x).toBeCloseTo(2646, 0);
+  });
+});
+
+describe('the full mining loop (end to end)', () => {
+  it('walks out, mines, walks home, and banks', () => {
+    // This is the test that proves the loops actually CLOSE. It runs the real
+    // tick pipeline — no hand-rolled movement — so it exercises aiSystem's
+    // miner branch, movementSystem's mine targeting, economySystem's gather
+    // and banking, in the order the real game runs them.
+    const world = createWorld(
+      {
+        ...DEFAULT_MATCH,
+        startGold: { player: 200, enemy: 0 },
+        startMiners: { player: 1, enemy: 0 },
+        initialUnits: { player: [], enemy: [] },
+        initialStance: 'hold',
+      },
+      1,
+    );
+
+    const startGold = world.gold.player;
+    for (let i = 0; i < 600; i++) step(world, []);
+
+    // One round trip is ~252 ticks, so two must have completed inside 600.
+    expect(world.gold.player).toBeGreaterThanOrEqual(startGold + 20);
+    expect(world.mines.player.goldLeft).toBeLessThan(6000);
+  });
+
+  it('leaves the miner idle when the seam runs dry', () => {
+    const world = createWorld(
+      {
+        ...DEFAULT_MATCH,
+        startGold: { player: 0, enemy: 0 },
+        startMiners: { player: 1, enemy: 0 },
+        initialUnits: { player: [], enemy: [] },
+        initialStance: 'hold',
+      },
+      1,
+    );
+    world.mines.player.goldLeft = 0;
+
+    for (let i = 0; i < 600; i++) step(world, []);
+
+    const miner = world.units.find((u) => u.typeId === 'miner');
+    expect(miner).toBeDefined();
+    // Must not sit in 'gather' looping an animation that yields nothing.
+    expect(miner!.state).not.toBe('gather');
   });
 });

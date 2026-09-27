@@ -26,6 +26,7 @@ function forward(side: Side): number {
 export function targetX(world: World, target: TargetRef): number | null {
   if (target === null) return null;
   if (target.kind === 'base') return world.bases[target.side].x;
+  if (target.kind === 'mine') return world.mines[target.side].x;
   const unit = world.units.find((u) => u.id === target.id);
   return unit ? unit.x : null;
 }
@@ -33,6 +34,9 @@ export function targetX(world: World, target: TargetRef): number | null {
 export function isTargetAlive(world: World, target: TargetRef): boolean {
   if (target === null) return false;
   if (target.kind === 'base') return world.bases[target.side].hp > 0;
+  // A mine is "alive" while it still holds gold; a depleted one stops being a
+  // valid destination so the miner can fall back to idle.
+  if (target.kind === 'mine') return world.mines[target.side].goldLeft > 0;
   const unit = world.units.find((u) => u.id === target.id);
   return unit !== undefined && unit.state !== 'dead' && unit.hp > 0;
 }

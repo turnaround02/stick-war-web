@@ -44,6 +44,22 @@ export function hashWorld(world: World): string {
   parts.push(`pop.p=${world.popUsed.player}`);
   parts.push(`pop.e=${world.popUsed.enemy}`);
 
+  // Mine reserves are M3 economy state: a match where a seam has been drained
+  // is not the same match as one where it has not, even at equal gold.
+  parts.push(`mine.p=${world.mines.player.goldLeft}`);
+  parts.push(`mine.e=${world.mines.enemy.goldLeft}`);
+
+  // The queue and the id counter decide what happens NEXT, so two worlds that
+  // look identical now would diverge on the following spawn.
+  parts.push(`nextId=${world.nextUnitId}`);
+  parts.push(`wave=${world.waveIndex}`);
+  for (const side of ['player', 'enemy'] as const) {
+    const q = world.trainingQueue[side]
+      .map((o) => `${o.typeId}:${o.ticksLeft}`)
+      .join(',');
+    parts.push(`queue.${side}=${q}`);
+  }
+
   parts.push(`base.p=${world.bases.player.hp}`);
   parts.push(`base.e=${world.bases.enemy.hp}`);
 
@@ -52,7 +68,7 @@ export function hashWorld(world: World): string {
 
   for (const unit of world.units) {
     parts.push(
-      `u${unit.id}:${unit.side}:${unit.typeId}:${quantise(unit.x)}:${unit.hp}:${unit.state}:${unit.stance}:${describeTarget(unit)}:${unit.windupTicksLeft}:${unit.cooldownTicksLeft}:${unit.stunTicksLeft}`,
+      `u${unit.id}:${unit.side}:${unit.typeId}:${quantise(unit.x)}:${unit.hp}:${unit.state}:${unit.stance}:${describeTarget(unit)}:${unit.windupTicksLeft}:${unit.cooldownTicksLeft}:${unit.stunTicksLeft}:${unit.gatherTicksLeft}:${unit.carrying}`,
     );
   }
 
@@ -68,5 +84,10 @@ export function hashWorld(world: World): string {
 function describeTarget(unit: Unit): string {
   const t = unit.target;
   if (t === null) return '-';
-  return t.kind === 'unit' ? `u${t.id}` : `b${t.side}`;
+  if (t.kind === 'unit') return `u${t.id}`;
+  // A mine and a base are both side-only references, so they must be
+  // distinguished explicitly: a loaded miner heading home and one heading out
+  // would otherwise hash identically.
+  if (t.kind === 'mine') return `m${t.side}`;
+  return `b${t.side}`;
 }

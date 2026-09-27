@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aiSystem } from './ai';
+import { movementSystem } from './movement';
 import { spawnUnit } from '../spawn';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { TickContext, Unit, World } from '../types';
@@ -15,8 +16,8 @@ function makeWorld(units: Unit[]): World {
       enemy: { side: 'enemy', x: 2700, hp: 3000, maxHp: 3000 },
     },
     mines: {
-      player: { side: 'player', x: 50, goldLeft: 0 },
-      enemy: { side: 'enemy', x: 2950, goldLeft: 0 },
+      player: { side: 'player', x: 550, goldLeft: 6000 },
+      enemy: { side: 'enemy', x: 2450, goldLeft: 6000 },
     },
     projectiles: [],
     nextProjectileId: 1,
@@ -196,5 +197,104 @@ describe('aiSystem', () => {
     expect(JSON.stringify(a.units.map((u) => u.target))).toBe(
       JSON.stringify(b.units.map((u) => u.target)),
     );
+  });
+});
+
+describe('aiSystem — miners', () => {
+  it('sends an idle miner to its own mine and puts it in advance', () => {
+    // createWorld spawns starting miners with stance 'hold', and movementSystem
+    // returns early for 'hold'. A miner that acquires a target but stays on
+    // hold would never move — the economy would be dead on arrival.
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 400 });
+    const world = makeWorld([m]);
+    aiSystem(ctx(world));
+    expect(m.target).toEqual({ kind: 'mine', side: 'player' });
+    expect(m.stance).toBe('advance');
+  });
+
+  it('sends an enemy miner to the enemy mine', () => {
+    const m = spawnUnit({ id: 1, side: 'enemy', typeId: 'miner', x: 2600 });
+    const world = makeWorld([m]);
+    aiSystem(ctx(world));
+    expect(m.target).toEqual({ kind: 'mine', side: 'enemy' });
+  });
+
+  it('keeps mining when an enemy is nearby but the stance is not retreat', () => {
+    // A miner has attack 0, so switching to a combat state would only make it
+    // stand still and be killed. Its only defence is retreat.
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500 });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 560 });
+    const world = makeWorld([m, e]);
+    aiSystem(ctx(world));
+    expect(m.target?.kind).toBe('mine');
+  });
+
+  it('flees home when an enemy is near and the stance is retreat', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 560 });
+    const world = makeWorld([m, e]);
+    aiSystem(ctx(world));
+    expect(m.target).toEqual({ kind: 'base', side: 'player' });
+  });
+
+  it('does not flee from an enemy that is far away', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 400, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 4000 });
+    const world = makeWorld([m, e]);
+    aiSystem(ctx(world));
+    expect(m.target?.kind).toBe('mine');
+  });
+
+  it('stops targeting a depleted mine', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500 });
+    m.target = { kind: 'mine', side: 'player' };
+    const world = makeWorld([m]);
+    world.mines.player.goldLeft = 0;
+    aiSystem(ctx(world));
+    expect(m.target).toBeNull();
+  });
+
+  it('never enters the attack state', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500 });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 510 });
+    const world = makeWorld([m, e]);
+    aiSystem(ctx(world));
+    expect(m.state).not.toBe('attack');
+  });
+
+  it('leaves a gathering miner alone', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 550 });
+    m.state = 'gather';
+    m.gatherTicksLeft = 50;
+    const world = makeWorld([m]);
+    aiSystem(ctx(world));
+    expect(m.state).toBe('gather');
+    expect(m.gatherTicksLeft).toBe(50);
+  });
+});
+
+describe('aiSystem — miner retreat is sticky', () => {
+  it('keeps the player retreat stance while fleeing', () => {
+    // The order must survive more than one tick: overwriting the stance with
+    // 'advance' made setStance(retreat) a one-tick no-op and made the HUD's
+    // stance field a lie.
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 560 });
+    const world = makeWorld([m, e]);
+    for (let i = 0; i < 10; i++) aiSystem(ctx(world));
+    expect(m.stance).toBe('retreat');
+    expect(m.target).toEqual({ kind: 'base', side: 'player' });
+  });
+
+  it('still walks home while retreating', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 900, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 960 });
+    const world = makeWorld([m, e]);
+    const start = m.x;
+    for (let i = 0; i < 60; i++) {
+      aiSystem(ctx(world));
+      movementSystem(ctx(world));
+    }
+    expect(m.x).toBeLessThan(start);
   });
 });

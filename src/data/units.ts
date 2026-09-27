@@ -95,7 +95,13 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
   archer: {
     id: 'archer',
     nameKey: 'unit.archer',
-    maxHp: 80,
+    // 70, not the original 80. An archer survives 3 swordsman hits at 80 and
+    // only 2 at 70, which is what stops an UNSCREENED archer line from
+    // out-trading a swordsman line. Deliberately not 65 or 45: those land
+    // exactly on damage breakpoints (ceil(65/32.5) and ceil(45/24)), so the
+    // outcome would hinge on one hit either way and drift under any other
+    // change. 70 is the value that is not a breakpoint.
+    maxHp: 70,
     armor: 0,
     armorType: 'light',
     bodyRadius: 11,
@@ -127,7 +133,16 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     attackCooldown: 1.2,
     windupTime: 0.3,
     projectileSpeed: 0,
-    bonusVs: { heavy: 1.6 },
+    // light x1.5 was missing and its absence was the only thing in the game
+    // that contradicted §6.5's "archers lose 1v1 to ANY melee": with no bonus
+    // at all, ten spearmen lost to ten archers. 1.5 is the MEASURED minimum
+    // that fixes it — 1.4 and 1.45 still let ten archers beat nine spearmen.
+    //
+    // Equal to the swordsman's light x1.5, which looks like it blurs the two
+    // roles but does not: the swordsman still has clearly better anti-light
+    // DPS (25*1.5 = 37.5 on a 1.0s cooldown = 37.5/s, vs 24*1.5 = 36 on 1.2s
+    // = 30/s), so "swordsman is the light-armour answer" stays true.
+    bonusVs: { heavy: 1.6, light: 1.5 },
     goldCost: 90,
     popCost: 1,
     trainTime: 7,

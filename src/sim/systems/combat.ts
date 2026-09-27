@@ -142,6 +142,11 @@ function applyDamage(world: World, attacker: Side, target: TargetRef, amount: nu
     return;
   }
 
+  // A mine is a navigation destination, never a damage target. Explicit rather
+  // than relying on `target.id` being undefined: that would work by accident
+  // and would silently start "damaging" unit #undefined if one ever existed.
+  if (target.kind === 'mine') return;
+
   const victim = world.units.find((u) => u.id === target.id);
   if (!victim || victim.state === 'dead') return;
 
@@ -176,6 +181,9 @@ function isAllyTarget(world: World, unit: Unit): boolean {
   const target = unit.target;
   if (target === null) return false;
   if (target.kind === 'base') return target.side === unit.side;
+  // A mine is always the unit's own side's mine (miners target their own), so
+  // it is an ally in the only sense this guard cares about: do not hit it.
+  if (target.kind === 'mine') return true;
   const other = world.units.find((u) => u.id === target.id);
   return other !== undefined && other.side === unit.side;
 }
