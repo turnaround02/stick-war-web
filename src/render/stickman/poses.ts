@@ -52,6 +52,53 @@ export const IDLE_POSE: Pose = {
  */
 export const CONTACT_PHASE = 0.5;
 
+/**
+ * Animation phase for an attacking unit, 0..1 over the WHOLE attack cycle.
+ *
+ * The cycle is windup + cooldown: the unit raises for `windupTicks`, strikes
+ * (which is the moment `combatSystem.releaseStrike` applies the damage and sets
+ * the cooldown to full), then recovers for `attackCooldown` ticks.
+ *
+ * Two properties this shape exists to guarantee, both of which the old
+ * windup-only division violated:
+ *
+ *   1. **The contact keyframe lands on the damage tick.** CONTACT_PHASE is
+ *      mapped onto the tick where `windupTicksLeft` hits 0, so the blade is
+ *      shown connecting exactly when the blow lands (spec §7.1's hard
+ *      constraint). Dividing by the windup alone put phase 1.0 on that tick
+ *      while CONTACT_PHASE sat at 0.5 — the strike was drawn half a windup
+ *      early and the damage arrived with the arm already recovering.
+ *   2. **The recovery is animated.** The old form froze the pose at 1.0 for the
+ *      whole cooldown, because `windupTicksLeft` is 0 throughout it. Folding
+ *      the cooldown in gives the follow-through somewhere to live.
+ *
+ * `windupTicksLeft === 0` is ambiguous between "about to strike" and "in
+ * recovery"; the cooldown disambiguates it, which is why both are needed.
+ */
+export function attackPhase(
+  windupTicksLeft: number,
+  cooldownTicksLeft: number,
+  windupTicks: number,
+  cooldownTicks: number,
+): number {
+  const total = windupTicks + cooldownTicks;
+  if (total <= 0) return CONTACT_PHASE;
+
+  // Still raising: 0 at the start of the windup, CONTACT_PHASE at the strike.
+  if (windupTicksLeft > 0 && windupTicks > 0) {
+    const elapsed = windupTicks - windupTicksLeft;
+    return (elapsed / windupTicks) * CONTACT_PHASE;
+  }
+
+  // Recovering: CONTACT_PHASE at the strike, 1 at the end of the cooldown.
+  if (cooldownTicks > 0) {
+    const elapsed = cooldownTicks - cooldownTicksLeft;
+    return CONTACT_PHASE + (elapsed / cooldownTicks) * (1 - CONTACT_PHASE);
+  }
+
+  return CONTACT_PHASE;
+}
+
 export const POSE_KEYFRAMES: Record<UnitState, Keyframe[]> = {
   idle: [
     { atPhase: 0, pose: IDLE_POSE },

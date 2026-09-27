@@ -13,6 +13,7 @@ import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
+import { attackPhase } from '../stickman/poses';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
 const GROUND_FRACTION = 2 / 3;
@@ -338,14 +339,14 @@ export class BattleScene extends Phaser.Scene {
   /**
    * Animation phase for a unit, 0..1.
    *
-   * For `attack` this is windup progress, NOT time in state, so the contact
-   * keyframe lands on the same tick the damage is applied (spec §7.1).
+   * For `attack` this spans the WHOLE attack cycle (windup + cooldown), which
+   * is what puts the contact keyframe on the same tick the damage lands — see
+   * `attackPhase`. For every other state it is time in state modulo the cycle.
    */
   private phaseOf(unit: Unit): number {
     if (unit.state === 'attack') {
-      const total = UNIT_TICKS[unit.typeId].windup;
-      if (total <= 0) return 0;
-      return 1 - unit.windupTicksLeft / total;
+      const t = UNIT_TICKS[unit.typeId];
+      return attackPhase(unit.windupTicksLeft, unit.cooldownTicksLeft, t.windup, t.attackCooldown);
     }
     const cycle = STATE_CYCLE_TICKS[unit.state] ?? 30;
     return ((this.world.tick - unit.stateEnteredTick) % cycle) / cycle;
