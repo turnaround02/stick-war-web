@@ -45,7 +45,7 @@ function runToTick(targetTicks: number, seed: number, fps: number): World {
 
   let guard = 0;
   while (world.tick < targetTicks && guard++ < 100_000) {
-    advanceWorld(timestep, world, delta, 1, []);
+    advanceWorld(timestep, world, delta, 1, () => []);
   }
   return world;
 }
@@ -96,8 +96,8 @@ describe('speed multiplies ticks without changing them', () => {
     const fastTs = new FixedTimestep();
 
     for (let i = 0; i < frames; i++) {
-      advanceWorld(slowTs, slow, delta, 1, []);
-      advanceWorld(fastTs, fast, delta, 4, []);
+      advanceWorld(slowTs, slow, delta, 1, () => []);
+      advanceWorld(fastTs, fast, delta, 4, () => []);
     }
 
     expect(fast.tick).toBe(slow.tick * 4);
@@ -110,11 +110,11 @@ describe('speed multiplies ticks without changing them', () => {
 
     const fast = createWorld(config, 5);
     const fastTs = new FixedTimestep();
-    for (let i = 0; i < 100; i++) advanceWorld(fastTs, fast, delta, 4, []);
+    for (let i = 0; i < 100; i++) advanceWorld(fastTs, fast, delta, 4, () => []);
 
     const slow = createWorld(config, 5);
     const slowTs = new FixedTimestep();
-    for (let i = 0; i < 400; i++) advanceWorld(slowTs, slow, delta, 1, []);
+    for (let i = 0; i < 400; i++) advanceWorld(slowTs, slow, delta, 1, () => []);
 
     expect(fast.tick).toBe(400);
     expect(slow.tick).toBe(400);
@@ -128,9 +128,10 @@ describe('command delivery under speed', () => {
     const world = createWorld({ ...config, startGold: { player: 5000, enemy: 5000 } }, 1);
     const timestep = new FixedTimestep();
     const cmd: Command = { kind: 'train', side: 'player', typeId: 'miner' };
+    const queue = [cmd];
 
     // Two full steps of delta, so 4x runs several ticks in one frame.
-    advanceWorld(timestep, world, STEP_MS * 2, speed, [cmd]);
+    advanceWorld(timestep, world, STEP_MS * 2, speed, () => queue.splice(0));
     return world.trainingQueue.player.length;
   }
 
@@ -142,13 +143,35 @@ describe('command delivery under speed', () => {
     expect(commandApplications(4)).toBe(1);
   });
 
-  it('drains nothing on a frame that runs no ticks', () => {
+  it('does not consume commands on a frame that runs no ticks', () => {
+    // The bug this guards: a scene that drains its command queue BEFORE knowing
+    // whether any tick will run loses every click made on a frame that ran zero
+    // ticks — which is most frames on a display above 60 Hz. Commands must stay
+    // queued until a tick can actually apply them.
     const world = createWorld({ ...config, startGold: { player: 5000, enemy: 5000 } }, 1);
     const timestep = new FixedTimestep();
-    const ticks = advanceWorld(timestep, world, STEP_MS / 10, 1, [
-      { kind: 'train', side: 'player', typeId: 'miner' },
-    ]);
+    let taken = 0;
+
+    const ticks = advanceWorld(timestep, world, STEP_MS / 10, 1, () => {
+      taken += 1;
+      return [{ kind: 'train', side: 'player', typeId: 'miner' }];
+    });
+
     expect(ticks).toBe(0);
+    expect(taken).toBe(0);
     expect(world.trainingQueue.player).toHaveLength(0);
+  });
+
+  it('still has the command available on the next frame that does run a tick', () => {
+    const world = createWorld({ ...config, startGold: { player: 5000, enemy: 5000 } }, 1);
+    const timestep = new FixedTimestep();
+    const pending: Command[] = [{ kind: 'train', side: 'player', typeId: 'miner' }];
+    const take = () => pending.splice(0);
+
+    // A frame that runs no ticks, then one that does.
+    advanceWorld(timestep, world, STEP_MS / 10, 1, take);
+    expect(world.trainingQueue.player).toHaveLength(0);
+    advanceWorld(timestep, world, STEP_MS, 1, take);
+    expect(world.trainingQueue.player).toHaveLength(1);
   });
 });

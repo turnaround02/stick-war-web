@@ -76,8 +76,14 @@ export class FixedTimestep {
  *   - Commands reach only the FIRST tick of the frame (spec §6.3.3). At 4x a
  *     frame runs several ticks, and handing the same orders to each would spend
  *     four times the gold for one click.
- *   - The per-tick work is identical at every speed, so the same seed reaches
- *     the same state regardless of how fast it was played. That property is
+ *   - `takeCommands` is called ONLY when at least one tick will run. If the
+ *     caller drained its queue before this point, every click made on a frame
+ *     that ran zero ticks would be silently discarded — and above 60 Hz most
+ *     frames run zero ticks. Taking the commands lazily, from inside here, makes
+ *     that mistake impossible to make at the call site.
+ *
+ *   - The per-tick work is identical at every speed, so the same tick count
+ *     reaches the same state regardless of how it was batched. That property is
  *     what the determinism tests assert, and this function is where it could
  *     actually be broken.
  */
@@ -86,9 +92,13 @@ export function advanceWorld(
   world: World,
   deltaMs: number,
   speed: number,
-  commands: Command[],
+  takeCommands: () => Command[],
 ): number {
   const ticks = timestep.advance(deltaMs, speed);
+  if (ticks <= 0) return 0;
+
+  // Taken once, here, so a caller cannot consume the queue on a zero-tick frame.
+  const commands = takeCommands();
 
   for (let i = 0; i < ticks; i++) {
     step(world, i === 0 ? commands : []);

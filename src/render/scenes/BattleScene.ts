@@ -200,21 +200,23 @@ export class BattleScene extends Phaser.Scene {
    * interpolation would never actually happen.
    */
   update(_time: number, delta: number): void {
-    if (this.paused) return;
-
     this.updateCamera(delta);
 
-    const ticks = advanceWorld(this.timestep, this.world, delta, this.speed, this.commands.drain());
+    // Render-only work runs even while paused: a pause must freeze the
+    // simulation, not the interface. Skipping this would leave a click made
+    // while paused invisible until the player resumed.
+    const ticks = this.paused
+      ? 0
+      : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
 
     this.syncStickmen();
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
     this.drawSelectionMarkers();
-
     this.hud.sync(this.world);
 
-    if (ticks > 0) {
+    if (ticks > 0 || this.paused) {
       this.tickLabel.setText(
-        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  PAUSED' : ''}`,
+        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}`,
       );
     }
   }
