@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
+  layoutPauseButton,
+  pauseLabel,
   layoutTrainButtons,
   layoutStanceButtons,
   layoutSpeedButtons,
@@ -172,5 +174,39 @@ describe('layoutSpeedButtons', () => {
     for (let i = 1; i < rects.length; i++) {
       expect(rects[i].x).toBeGreaterThanOrEqual(rects[i - 1].x + rects[i - 1].w);
     }
+  });
+});
+
+describe('pause button', () => {
+  it('is laid out to the left of the speed buttons', () => {
+    const pause = layoutPauseButton(1280, metrics);
+    const speed = layoutSpeedButtons(1280, metrics);
+    expect(pause.x + pause.w).toBeLessThanOrEqual(speed[0].x);
+  });
+
+  it('never overlaps the speed group', () => {
+    for (const width of [640, 1280, 1920]) {
+      const pause = layoutPauseButton(width, metrics);
+      const speed = layoutSpeedButtons(width, metrics);
+      expect(pause.x + pause.w, `width ${width}`).toBeLessThanOrEqual(speed[0].x);
+    }
+  });
+
+  it('sits inside the viewport at a narrow width', () => {
+    const pause = layoutPauseButton(640, metrics);
+    expect(pause.x).toBeGreaterThanOrEqual(0);
+    expect(pause.x + pause.w).toBeLessThanOrEqual(640);
+  });
+
+  it('is vertically aligned with the speed buttons', () => {
+    const pause = layoutPauseButton(1280, metrics);
+    const speed = layoutSpeedButtons(1280, metrics);
+    expect(pause.y).toBe(speed[0].y);
+    expect(pause.h).toBe(speed[0].h);
+  });
+
+  it('reads Pause while running and Resume while paused', () => {
+    expect(pauseLabel(false)).toBe('暂停');
+    expect(pauseLabel(true)).toBe('继续');
   });
 });

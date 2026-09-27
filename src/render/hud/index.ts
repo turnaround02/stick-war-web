@@ -15,9 +15,11 @@ import { t } from '../../i18n';
 import { UNITS } from '../../data/units';
 import { SPEED_STEPS, type GameSpeed } from '../timestep';
 import {
+  layoutPauseButton,
   layoutSpeedButtons,
   layoutStanceButtons,
   layoutTrainButtons,
+  pauseLabel,
   resourceText,
   trainButtonState,
   STANCE_BUTTONS,
@@ -45,6 +47,8 @@ export interface Hud {
   layout(width: number, height: number): void;
   /** Highlights the active speed button. */
   setSpeed(speed: GameSpeed): void;
+  /** Updates the pause button's label and highlight. */
+  setPaused(paused: boolean): void;
   destroy(): void;
 }
 
@@ -52,6 +56,7 @@ export interface HudCallbacks {
   onTrain(typeId: UnitTypeId): void;
   onStance(stance: Stance): void;
   onSpeedChange(speed: GameSpeed): void;
+  onTogglePause(): void;
 }
 
 /**
@@ -123,6 +128,10 @@ export function createHud(
     speed,
     ...makeButton(() => callbacks.onSpeedChange(speed)),
   }));
+
+  // ── Pause button (left of the speed group) ────────────────────────
+  const pauseButton = makeButton(() => callbacks.onTogglePause());
+  pauseButton.reason.setVisible(false);
   const speedHeader = scene.add
     .text(0, 0, t('ui.speed'), { fontFamily: FONT, fontSize: '13px', color: TEXT_LIGHT })
     .setOrigin(1, 0.5)
@@ -156,9 +165,12 @@ export function createHud(
         b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2);
       });
 
-      // The header sits just left of the first speed button.
-      const first = speedRects[0];
-      speedHeader.setPosition(first.x - 10, first.y + first.h / 2);
+      const pr = layoutPauseButton(width, metrics);
+      pauseButton.rect.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
+      pauseButton.label.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
+
+      // The header sits just left of the pause button.
+      speedHeader.setPosition(pr.x - 10, pr.y + pr.h / 2);
 
       barBg.clear();
       barBg.fillStyle(BG_COLOR, BG_ALPHA);
@@ -186,12 +198,17 @@ export function createHud(
       }
     },
 
+    setPaused(paused: boolean): void {
+      pauseButton.label.setText(pauseLabel(paused));
+      pauseButton.rect.setFillStyle(paused ? BUTTON_ACTIVE : BUTTON_ON);
+    },
+
     destroy(): void {
       resourceBg.destroy();
       resourceText_.destroy();
       barBg.destroy();
       speedHeader.destroy();
-      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons]) {
+      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton]) {
         b.rect.destroy();
         b.label.destroy();
         b.reason.destroy();

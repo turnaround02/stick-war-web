@@ -80,9 +80,11 @@ export class BattleScene extends Phaser.Scene {
         this.speed = speed;
         this.hud.setSpeed(speed);
       },
+      onTogglePause: () => this.togglePause(),
     });
     // Highlight the initial speed so the buttons do not all look inactive on load.
     this.hud.setSpeed(this.speed);
+    this.hud.setPaused(this.paused);
 
     this.syncStickmen();
     this.layout();
@@ -121,7 +123,7 @@ export class BattleScene extends Phaser.Scene {
         if (e.code === 'KeyQ') this.pushStance('advance');
         if (e.code === 'KeyW') this.pushStance('hold');
         if (e.code === 'KeyE') this.pushStance('retreat');
-        if (e.code === 'Space') this.paused = !this.paused;
+        if (e.code === 'Space') this.togglePause();
       });
       kb.on('keyup', (e: KeyboardEvent) => this.keys.update(e.code, false));
     }
@@ -160,9 +162,19 @@ export class BattleScene extends Phaser.Scene {
     else this.selection.clear();
   }
 
+  /**
+   * Flips pause and keeps the HUD in step.
+   *
+   * One method for both the Space key and the button, so the two can never
+   * disagree about whether the game is paused.
+   */
+  private togglePause(): void {
+    this.paused = !this.paused;
+    this.hud.setPaused(this.paused);
+  }
+
   /** Stance order for the selection, or the whole army when nothing is selected. */
-  private pushStance(stance: Stance): void {
-    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
+  private pushStance(stance: Stance): void {    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
     if (selected.length > 0) {
       this.commands.push(cmdSetStance('player', selected, stance));
       return;

@@ -43,6 +43,8 @@ const SIDE_PADDING = 16;
 const SPEED_BUTTON_W = 52;
 const SPEED_BUTTON_H = 30;
 const SPEED_TOP = 14;
+/** Wider than a speed button: the label is two characters, not three. */
+const PAUSE_BUTTON_W = 64;
 
 /** The resource readout: gold and population against the cap. */
 export function resourceText(world: World, side: Side): string {
@@ -132,3 +134,25 @@ export function layoutSpeedButtons(width: number, metrics: HudMetrics): HudRect[
 
 /** Speed-button dimensions, exported so the scene does not hardcode them. */
 export const SPEED_BUTTON = { w: SPEED_BUTTON_W, h: SPEED_BUTTON_H, top: SPEED_TOP } as const;
+
+/** The pause button's label for the current state. */
+export function pauseLabel(paused: boolean): string {
+  return t(paused ? 'ui.resume' : 'ui.pause');
+}
+
+/**
+ * The pause button, immediately left of the speed group.
+ *
+ * Spec §7.3 lists it beside the speed control. It is DERIVED from the speed
+ * layout rather than positioned independently, so the two cannot drift apart or
+ * overlap at any window width.
+ */
+export function layoutPauseButton(width: number, metrics: HudMetrics): HudRect {
+  const first = layoutSpeedButtons(width, metrics)[0];
+  return {
+    x: Math.max(0, first.x - PAUSE_BUTTON_W - metrics.gap),
+    y: first.y,
+    w: PAUSE_BUTTON_W,
+    h: first.h,
+  };
+}
