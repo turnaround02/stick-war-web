@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { combatSystem } from './combat';
 import { spawnUnit } from '../spawn';
+import { UNITS } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { TickContext, Unit, World } from '../types';
 
@@ -123,8 +124,12 @@ describe('combatSystem — melee', () => {
     a.windupTicksLeft = 1;
     const world = makeWorld([a, archer]);
     combatSystem(ctx(world));
-    // 25 x1.5 = 37.5, archer armour 0 -> 37.5
-    expect(archer.hp).toBeCloseTo(80 - 37.5, 10);
+    // 25 x1.5 = 37.5, archer armour 0 -> 37.5. The starting HP comes from the
+    // data table rather than a literal: balance changes to maxHp must not break
+    // a test about the DAMAGE FORMULA.
+    const bonus = UNITS.swordsman.bonusVs.light ?? 1;
+    const expected = UNITS.swordsman.attack * bonus - UNITS.archer.armor;
+    expect(archer.hp).toBeCloseTo(UNITS.archer.maxHp - expected, 10);
   });
 
   it('damages the enemy base when that is the target', () => {
