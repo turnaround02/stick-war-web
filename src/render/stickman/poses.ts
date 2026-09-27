@@ -1,6 +1,22 @@
 import type { UnitState } from '../../sim/types';
 
-/** Joint angles in radians. 0 points down (+Y); positive rotates clockwise on screen. */
+/**
+ * Joint angles in radians. Positive rotates clockwise on screen.
+ *
+ * TWO DIFFERENT ZERO REFERENCES, because the limbs hang differently and both
+ * sets of values below were authored against their own:
+ *
+ *   `legFront` / `legBack` — legs hang DOWN from the hip. 0 = straight down;
+ *                            positive swings the foot forward.
+ *   `armFront` / `armBack` — arms point FORWARD from the shoulder. 0 = straight
+ *                            forward; positive swings the hand down.
+ *   `torso` / `weapon`     — 0 = upright / aligned with the arm.
+ *
+ * The rest vectors live in `rig.ts` and are asserted by `rig.test.ts`. Getting
+ * them wrong is not cosmetic: the legs were once drawn as horizontal rectangles
+ * while these values assumed vertical, so every stickman stood with its feet
+ * stuck out in front. See `rig.ts` for the full account.
+ */
 export interface Pose {
   torso: number;
   armFront: number;
