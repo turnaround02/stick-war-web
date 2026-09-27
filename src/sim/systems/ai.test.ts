@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aiSystem } from './ai';
+import { movementSystem } from './movement';
 import { spawnUnit } from '../spawn';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { TickContext, Unit, World } from '../types';
@@ -269,5 +270,31 @@ describe('aiSystem — miners', () => {
     aiSystem(ctx(world));
     expect(m.state).toBe('gather');
     expect(m.gatherTicksLeft).toBe(50);
+  });
+});
+
+describe('aiSystem — miner retreat is sticky', () => {
+  it('keeps the player retreat stance while fleeing', () => {
+    // The order must survive more than one tick: overwriting the stance with
+    // 'advance' made setStance(retreat) a one-tick no-op and made the HUD's
+    // stance field a lie.
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 500, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 560 });
+    const world = makeWorld([m, e]);
+    for (let i = 0; i < 10; i++) aiSystem(ctx(world));
+    expect(m.stance).toBe('retreat');
+    expect(m.target).toEqual({ kind: 'base', side: 'player' });
+  });
+
+  it('still walks home while retreating', () => {
+    const m = spawnUnit({ id: 1, side: 'player', typeId: 'miner', x: 900, stance: 'retreat' });
+    const e = spawnUnit({ id: 2, side: 'enemy', typeId: 'swordsman', x: 960 });
+    const world = makeWorld([m, e]);
+    const start = m.x;
+    for (let i = 0; i < 60; i++) {
+      aiSystem(ctx(world));
+      movementSystem(ctx(world));
+    }
+    expect(m.x).toBeLessThan(start);
   });
 });

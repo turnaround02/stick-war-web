@@ -51,10 +51,12 @@ export function aiSystem(ctx: TickContext): void {
  * retreat, which is exactly the lever the player has.
  *
  * The miner's STANCE is derived from its job rather than left as the player
- * set it. createWorld spawns starting miners on 'hold', and movementSystem
- * returns early for 'hold' — a miner that acquired a mine target but stayed on
- * hold would never move and the economy would never start. `retreat` is the
- * one stance that stays player-owned, because fleeing is a real order.
+ * set it, EXCEPT for `retreat`. createWorld spawns starting miners on 'hold',
+ * and movementSystem returns early for 'hold' — a miner that acquired a mine
+ * target but stayed on hold would never move and the economy would never start.
+ * `retreat` is the one stance that stays player-owned, because fleeing is a real
+ * order; a retreating miner keeps it, and movementSystem's retreat branch is
+ * what actually carries it home.
  */
 function updateMiner(ctx: TickContext, unit: Unit): void {
   // Gathering is the one state the miner holds on its own; economySystem owns
@@ -65,7 +67,11 @@ function updateMiner(ctx: TickContext, unit: Unit): void {
 
   if (enemyNear && unit.stance === 'retreat') {
     unit.target = { kind: 'base', side: unit.side };
-    unit.stance = 'advance'; // so movementSystem actually integrates the move
+    // The stance is NOT overwritten: movementSystem's `retreat` branch walks the
+    // unit to its own base front regardless of `target`, so leaving it alone
+    // produces the right movement AND keeps the player's order visible and
+    // sticky. Overwriting it here would erase the order on the next tick and
+    // make the HUD's stance field a lie.
     transition(ctx, unit, 'move');
     return;
   }

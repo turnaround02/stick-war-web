@@ -12,15 +12,12 @@
 
 import { UNITS } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
-import { advanceGather, tryBankGold } from '../economy';
+import { MINE_ARRIVAL_TOLERANCE, advanceGather, tryBankGold } from '../economy';
 import { targetX } from '../targeting';
 import { advanceTrainingQueue } from '../training';
 import type { Side, TickContext, World } from '../types';
 
 const SIDES: readonly Side[] = ['player', 'enemy'];
-
-/** How close to the mine counts as "arrived", in px. */
-const MINE_ARRIVAL_TOLERANCE = 8;
 
 export function economySystem(ctx: TickContext): void {
   const { world } = ctx;
@@ -61,12 +58,20 @@ export function economySystem(ctx: TickContext): void {
       continue;
     }
 
-    // Arrived at the mine: start gathering.
+    // Arrived at the mine: start gathering — but only if the seam still holds
+    // gold. With two miners on one seam the second can arrive after the first
+    // drained it, and without this check it would play a full 90-tick gather
+    // animation and produce nothing: a "working" animation with no output,
+    // which is the failure mode the depleted-seam rule exists to prevent.
     if (unit.target !== null && unit.target.kind === 'mine') {
       const mineX = targetX(world, unit.target);
-      if (mineX !== null && Math.abs(unit.x - mineX) <= MINE_ARRIVAL_TOLERANCE) {
+      const seamHasGold = world.mines[unit.target.side].goldLeft > 0;
+      if (seamHasGold && mineX !== null && Math.abs(unit.x - mineX) <= MINE_ARRIVAL_TOLERANCE) {
         unit.state = 'gather';
         unit.gatherTicksLeft = UNIT_TICKS.miner.gatherTime;
+      } else if (!seamHasGold) {
+        unit.state = 'idle';
+        unit.target = null;
       }
     }
   }

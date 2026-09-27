@@ -8,12 +8,9 @@ import {
   type HudMetrics,
 } from './layout';
 import { UNITS } from '../../data/units';
-import { UNITS as _u } from '../../data/units';
 import { SPEED_STEPS } from '../timestep';
 import { createWorld } from '../../sim/createWorld';
 import { DEFAULT_MATCH } from '../../data/levels';
-
-void _u;
 
 const metrics: HudMetrics = {
   buttonW: 108,

@@ -107,3 +107,54 @@ describe('hashWorld', () => {
     expect(hashWorld(a)).not.toBe(hashWorld(b));
   });
 });
+
+describe('hashWorld — M3 economy state', () => {
+  it('distinguishes a mine target from a base target', () => {
+    // Both are side-only references, so a naive `kind === 'unit' ? ... : b${side}`
+    // collapses them. A miner heading home loaded and one heading outbound would
+    // then hash identically — exactly the arrive/depart transition the hash
+    // exists to guard.
+    const a = createWorld({ ...match, startMiners: { player: 1, enemy: 0 } }, 1);
+    const b = createWorld({ ...match, startMiners: { player: 1, enemy: 0 } }, 1);
+    a.units[0].target = { kind: 'base', side: 'player' };
+    b.units[0].target = { kind: 'mine', side: 'player' };
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('changes when carried gold changes', () => {
+    const w = createWorld({ ...match, startMiners: { player: 1, enemy: 0 } }, 1);
+    const before = hashWorld(w);
+    w.units[0].carrying = 20;
+    expect(hashWorld(w)).not.toBe(before);
+  });
+
+  it('changes when the gather timer changes', () => {
+    const w = createWorld({ ...match, startMiners: { player: 1, enemy: 0 } }, 1);
+    const before = hashWorld(w);
+    w.units[0].gatherTicksLeft = 42;
+    expect(hashWorld(w)).not.toBe(before);
+  });
+
+  it('changes when mine gold changes', () => {
+    const w = createWorld(match, 1);
+    const before = hashWorld(w);
+    w.mines.player.goldLeft -= 20;
+    expect(hashWorld(w)).not.toBe(before);
+  });
+
+  it('changes when the training queue changes', () => {
+    const w = createWorld(match, 1);
+    const before = hashWorld(w);
+    w.trainingQueue.player.push({ typeId: 'miner', ticksLeft: 100 });
+    expect(hashWorld(w)).not.toBe(before);
+  });
+
+  it('changes when nextUnitId changes', () => {
+    // Two worlds that have spawned the same units but differ in their id
+    // counter will diverge on the NEXT spawn.
+    const w = createWorld(match, 1);
+    const before = hashWorld(w);
+    w.nextUnitId += 1;
+    expect(hashWorld(w)).not.toBe(before);
+  });
+});

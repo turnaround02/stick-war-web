@@ -27,9 +27,24 @@ describe('TargetRef', () => {
     expect(describeTarget({ kind: 'base', side: 'enemy' })).toBe('base:enemy');
   });
 
-  it('exhausts the union — the switch has no default and still type-checks', () => {
-    // If a third variant were added, tsc would fail on the missing case.
-    const all: TargetRef[] = [null, { kind: 'unit', id: 1 }, { kind: 'base', side: 'player' }];
-    expect(all.map(describeTarget)).toEqual(['none', 'unit:1', 'base:player']);
+  it('expresses a mine target', () => {
+    expect(describeTarget({ kind: 'mine', side: 'player' })).toBe('mine:player');
+  });
+
+  it('exhausts the union — every variant is actually exercised', () => {
+    // If a further variant were added, tsc would fail on the missing case; this
+    // also RUNS each one, which the compiler alone does not do.
+    const all: TargetRef[] = [
+      null,
+      { kind: 'unit', id: 1 },
+      { kind: 'base', side: 'player' },
+      { kind: 'mine', side: 'enemy' },
+    ];
+    expect(all.map(describeTarget)).toEqual([
+      'none',
+      'unit:1',
+      'base:player',
+      'mine:enemy',
+    ]);
   });
 });

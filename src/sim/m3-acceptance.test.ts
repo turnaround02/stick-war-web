@@ -46,27 +46,56 @@ describe('M3 acceptance 1: the economy closes', () => {
     expect(world.gold.player).toBe(200);
   });
 
-  it('depletes the seam as gold is produced', () => {
+  it('depletes the seam in step with the gold produced', () => {
     const world = createWorld(ECONOMY_MATCH, 1);
     for (let i = 0; i < 800; i++) step(world, []);
-    expect(world.mines.player.goldLeft).toBeLessThan(6000);
+    // Stronger than `goldLeft < 6000`: the seam must have lost exactly what the
+    // treasury gained, since the miner started with 200 gold and no other
+    // income exists.
+    const earned = world.gold.player - 200;
+    expect(earned).toBeGreaterThanOrEqual(40);
+    expect(world.mines.player.goldLeft).toBe(6000 - earned);
+  });
+
+  it('never enters a gather that cannot produce gold', () => {
+    // Review Focus #5, at the unit level: a miner must not sit in `gather` on an
+    // empty seam, because that is a "working" animation with no output.
+    const world = createWorld({ ...ECONOMY_MATCH, startMiners: { player: 2, enemy: 0 } }, 1);
+    world.mines.player.goldLeft = 0;
+    for (let i = 0; i < 600; i++) step(world, []);
+    for (const unit of world.units) {
+      if (unit.typeId !== 'miner') continue;
+      expect(unit.state).not.toBe('gather');
+    }
+    expect(world.gold.player).toBe(200);
   });
 
   it('loses the load when the miner dies in transit', () => {
     // Review Focus #4: a miner killed on the way home is a real economic loss.
     const world = createWorld(ECONOMY_MATCH, 1);
-    // Run until the miner is carrying.
-    for (let i = 0; i < 400 && world.units[0].carrying === 0; i++) step(world, []);
-    const carrier = world.units.find((u) => u.carrying > 0);
-    if (carrier) {
-      const goldBefore = world.gold.player;
-      carrier.state = 'dead';
-      carrier.hp = 0;
+    // Run until a miner is carrying.
+    let carrier = world.units.find((u) => u.carrying > 0);
+    for (let i = 0; i < 600 && !carrier; i++) {
       step(world, []);
-      // The seam already lost the gold; the treasury never gains it.
-      expect(world.gold.player).toBe(goldBefore);
-      expect(world.mines.player.goldLeft).toBeLessThan(6000);
+      carrier = world.units.find((u) => u.carrying > 0);
     }
+    // Must not pass vacuously: if no miner ever picked up a load, the premise of
+    // this test is broken and that is a failure, not a skip.
+    expect(carrier, 'expected a miner to be carrying gold within 600 ticks').toBeDefined();
+
+    const seamBefore = world.mines.player.goldLeft;
+    const goldBefore = world.gold.player;
+    const carried = carrier!.carrying;
+
+    carrier!.state = 'dead';
+    carrier!.hp = 0;
+    step(world, []);
+
+    // The seam really lost the gold, and the treasury never received it: the
+    // loss is permanent, not merely deferred.
+    expect(world.mines.player.goldLeft).toBe(seamBefore);
+    expect(world.gold.player).toBe(goldBefore);
+    expect(carried).toBeGreaterThan(0);
   });
 });
 

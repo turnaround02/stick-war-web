@@ -8,7 +8,7 @@ import { createWorld } from '../../sim/createWorld';
 import type { Side, Stance, Unit, UnitState, World } from '../../sim/types';
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
 import { createHud, type Hud } from '../hud';
-import { Selection } from '../selection';
+import { Selection, selectedIdsOf } from '../selection';
 import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
@@ -54,7 +54,19 @@ export class BattleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Scene.restart() reuses this instance, so every mutable field must be
+    // reset here. Without this, pressing R after pausing starts the new match
+    // still paused, and stale selection/keys survive into it.
     this.world = createWorld(RENDER_DEMO_MATCH, RENDER_DEMO_SEED);
+    this.timestep = new FixedTimestep();
+    this.commands = new CommandQueue();
+    this.keys = new KeyState();
+    this.selection = new Selection();
+    this.speed = 1;
+    this.paused = false;
+    this.stickmen.clear();
+    this.lastTypeId.clear();
+    this.lastFacing.clear();
 
     this.groundLine = this.add.graphics();
     this.projectiles = createProjectileLayer(this);
@@ -68,6 +80,8 @@ export class BattleScene extends Phaser.Scene {
         this.hud.setSpeed(speed);
       },
     });
+    // Highlight the initial speed so the buttons do not all look inactive on load.
+    this.hud.setSpeed(this.speed);
 
     this.syncStickmen();
     this.layout();
@@ -96,6 +110,10 @@ export class BattleScene extends Phaser.Scene {
     const kb = this.input.keyboard;
     if (kb) {
       kb.on('keydown', (e: KeyboardEvent) => {
+        // Browsers auto-repeat held keys; without this, holding Space flickers
+        // pause and holding R restarts every repeat.
+        if (e.repeat) return;
+
         this.keys.update(e.code, true);
         // Stance hotkeys act on the SELECTION; with nothing selected they fall
         // back to the whole army, which is what the Q/W/E muscle memory wants.
@@ -106,6 +124,10 @@ export class BattleScene extends Phaser.Scene {
       });
       kb.on('keyup', (e: KeyboardEvent) => this.keys.update(e.code, false));
     }
+
+    // A key released while the window is unfocused never fires keyup, so the
+    // camera would scroll forever. Clearing on blur is the cheap fix.
+    this.game.events.on(Phaser.Core.Events.BLUR, () => this.keys.clear());
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
@@ -124,7 +146,11 @@ export class BattleScene extends Phaser.Scene {
     if (pointer.y >= hudTop) return;
     if (pointer.y <= 56 && (pointer.x <= 240 || pointer.x >= this.scale.width - 240)) return;
 
-    const worldX = pointer.x / cam.zoom + cam.scrollX;
+    // Phaser's own inverse. Hand-rolling `pointer.x / zoom + scrollX` is wrong
+    // once zoom != 1: with originX 0.5 the camera overhangs the origin by
+    // (W/z - W)/2, so the error is 427 world px at 0.6x and 107 at 1.2x — a
+    // click would select a unit far to its right, or nothing at all.
+    const worldX = cam.getWorldPoint(pointer.x, pointer.y).x;
     const hit = this.world.units.find(
       (u) => u.side === 'player' && u.state !== 'dead' && Math.abs(u.x - worldX) <= 20,
     );
@@ -135,11 +161,12 @@ export class BattleScene extends Phaser.Scene {
 
   /** Stance order for the selection, or the whole army when nothing is selected. */
   private pushStance(stance: Stance): void {
-    const living = this.world.units.filter((u) => u.side === 'player' && u.state !== 'dead');
-    const selected = living.filter((u) => this.selection.has(u.id));
-    const targets = selected.length > 0 ? selected : living;
-    if (targets.length === 0) return;
-    this.commands.push(cmdSetStance('player', targets.map((u) => u.id), stance));
+    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
+    if (selected.length > 0) {
+      this.commands.push(cmdSetStance('player', selected, stance));
+      return;
+    }
+    this.pushStanceToAll(stance);
   }
 
   private pushStanceToAll(stance: Stance): void {
