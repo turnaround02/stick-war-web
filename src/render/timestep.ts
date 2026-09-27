@@ -46,10 +46,16 @@ export class FixedTimestep {
     const scale = speed > 0 ? speed : 1;
 
     if (deltaMs > 0) {
-      this.accumulator += deltaMs * scale;
+      // Cap in REAL time, BEFORE scaling. Capping after the multiply made the
+      // effective catch-up window shrink with the speed — 250ms at 1x but only
+      // 62.5ms at 4x — so a hitch that 1x would ride out silently dropped time
+      // at 4x. That matters because 4x is exactly when a player is watching the
+      // AI, and dropped time is invisible.
+      const realDelta = Math.min(deltaMs, MAX_ACCUMULATOR_MS);
+      this.accumulator += realDelta * scale;
     }
-    if (this.accumulator > MAX_ACCUMULATOR_MS) {
-      this.accumulator = MAX_ACCUMULATOR_MS;
+    if (this.accumulator > MAX_ACCUMULATOR_MS * scale) {
+      this.accumulator = MAX_ACCUMULATOR_MS * scale;
     }
 
     const ticks = Math.floor(this.accumulator / STEP_MS);

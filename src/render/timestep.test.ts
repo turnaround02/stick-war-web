@@ -105,7 +105,8 @@ describe('speed scaling', () => {
   it('still caps catch-up at high speed', () => {
     const ts = new FixedTimestep();
     const ticks = ts.advance(60_000, 4);
-    expect(ticks).toBeLessThanOrEqual(Math.ceil(MAX_ACCUMULATOR_MS / STEP_MS));
+    // The cap is MAX_ACCUMULATOR_MS of REAL time, which at 4x is 4x the ticks.
+    expect(ticks).toBeLessThanOrEqual(Math.ceil((MAX_ACCUMULATOR_MS / STEP_MS) * 4));
   });
 
   it('keeps alpha in range at every speed', () => {
@@ -125,5 +126,54 @@ describe('speed scaling', () => {
     expect(ts.advance(STEP_MS * 2, 0)).toBe(2);
     const ts2 = new FixedTimestep();
     expect(ts2.advance(STEP_MS * 2, -1)).toBe(2);
+  });
+});
+
+describe('catch-up window is measured in REAL time', () => {
+  it('caps the accumulator in unscaled time, not scaled', () => {
+    // The bug: MAX_ACCUMULATOR_MS was applied AFTER multiplying by speed, so at
+    // 4x the real-time window was only 62.5ms. A 250ms hitch at 4x should be
+    // worth 250ms of real catch-up, i.e. four times the 1x tick count.
+    const one = new FixedTimestep().advance(MAX_ACCUMULATOR_MS, 1);
+    const four = new FixedTimestep().advance(MAX_ACCUMULATOR_MS, 4);
+    // Exact equality is avoided on purpose: 250 / (1000/30) is 7.4999..., so the
+    // floor lands one either side depending on the speed's rounding. The
+    // property that matters is the 4x relationship.
+    expect(four).toBeGreaterThanOrEqual(one * 4);
+    expect(four).toBeLessThanOrEqual(one * 4 + 4);
+  });
+
+  it('never exceeds the cap in real milliseconds at any speed', () => {
+    for (const speed of SPEED_STEPS) {
+      const ts = new FixedTimestep();
+      // Feed a huge stall: the accumulated REAL time must be capped at
+      // MAX_ACCUMULATOR_MS regardless of speed.
+      const ticks = ts.advance(60_000, speed);
+      const realMsConsumed = (ticks / speed) * STEP_MS;
+      expect(realMsConsumed, `speed ${speed}`).toBeLessThanOrEqual(MAX_ACCUMULATOR_MS + STEP_MS);
+    }
+  });
+
+  it('still drops excess time after a long stall', () => {
+    // The cap's whole purpose: do not try to catch up on a 60s background tab.
+    for (const speed of SPEED_STEPS) {
+      const ts = new FixedTimestep();
+      const ticks = ts.advance(60_000, speed);
+      expect(ticks, `speed ${speed}`).toBeLessThan(1000);
+    }
+  });
+
+  it('is unaffected at 1x', () => {
+    const ts = new FixedTimestep();
+    expect(ts.advance(60_000, 1)).toBe(Math.floor(MAX_ACCUMULATOR_MS / STEP_MS));
+  });
+
+  it('keeps alpha in range after a stall at every speed', () => {
+    for (const speed of SPEED_STEPS) {
+      const ts = new FixedTimestep();
+      ts.advance(60_000, speed);
+      expect(ts.alpha).toBeGreaterThanOrEqual(0);
+      expect(ts.alpha).toBeLessThan(1);
+    }
   });
 });
