@@ -73,35 +73,45 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] 设计规格已写入 `docs/superpowers/specs/` 并通过评审
 - [x] 实施计划写入 `docs/superpowers/plans/2026-09-25-m1-skeleton.md`
 - [x] **M1 骨架**（已合并至 `master`）
-- [x] **M2 移动与战斗**（分支 `m2-combat`，16 commits，215 tests）
-- [ ] **M3 经济与指令**
-- [ ] M4 AI 与关卡
+- [x] **M2 移动与战斗**（已合并，215 tests）
+- [x] **M3 经济与指令**（分支 `m3-economy`，16 commits，**420 tests**）
+- [ ] **M4 AI 与关卡**
 - [ ] M5 打磨
 
-## M2 已交付
+## M3 已交付
 
-`src/sim/` 的五个 system 现在有真实逻辑（economy 与 commands 仍是空壳，属于 M3）：
+`src/sim/` 的最后两个空壳 system 现在有真实逻辑，渲染层有了完整的可玩界面：
 
-- `movement` — 姿态驱动的积分 + 调用 `separation`
-- `separation` — 加权双向扫描 + 单调游标扫描（保证零重叠）+ 基地走廊钳制
-- `ai` — 状态机与目标锁定
-- `combat` — 前摇三规则、弹丸、伤害与护甲、`stats` 累加
-- `cleanup` — 两阶段死亡、双条件胜负
+- `economy` — 矿工往返（`TargetRef` 新增 `mine` 变体）、采集计时、入账、人口重算
+- `commands` — `train` 与 `setStance`，`side` 强制校验（玩家与 AI 共用指令类型）
+- `training`（新）— 串行队列、下单扣金/出生占人口、出生位置外推搜索
+- `ai` — 矿工三段优先级（有敌+撤退→逃；有敌→继续挖；无敌→挖）
+- `movement` — 矿工按「点」导航（矿点 / 基地前沿），撤退停在基地**前沿**
+- `render/` — 相机（滚动+缩放，钳制含 origin 偏移）、HUD（资源/指令/速度）、
+  选中、`i18n`、`input/` 适配器、`advanceWorld` 帧驱动
 
-配套：`data/unitTicks.ts`（秒→tick 唯一转换点）、`sim/hash.ts`（FNV-1a）、
-`sim/spawn.ts`、`sim/targeting.ts`、`sim/damage.ts`、`sim/harness.ts`（对撞矩阵）。
+## M4 开工前必须处理
 
-## M3 开工前必须处理
+1. **敌方无经济**：`RENDER_DEMO_MATCH` 用 `initialUnits` 给定敌方阵容，敌方矿工不采集、也不会造兵。M4 的两层 AI 战术层要接上。
+2. **关卡系统未实现**：`MatchConfig.waves` / `waveIndex` / `nextWaveTick` 无人消费，`enemyAi: 'scripted'` 分支是空的。
+3. **速度控制的暂停无按钮**：spec §7.3 列了暂停按钮，M3 只做了 Space 键（`ui.pause` / `ui.resume` 文案已就绪但未被引用）。
+4. **战线指示器未做**：spec §7.3 称之为「唯一的全局态势来源」。
+5. **`hash.ts` 现在覆盖了经济状态**（矿脉、队列、`nextUnitId`、`gatherTicksLeft`、`carrying`）—— M4 若新增 `World` 字段，记得同步加进哈希，否则确定性回归会漏检。
 
-1. **`World.trainingQueue` 目前无人消费**。`economySystem` 是空壳，造兵队列永远不被推进。M3 必须接上，否则造兵系统完全无效。
-2. **`commandsSystem` 是空壳**，没有任何东西产生 `Command`。姿态由 `createWorld` 在出生时直接设定（`initialStance`）。M3 的 HUD 与键鼠要经由 `Command` 走 `commandsSystem`，不要绕过它直接改 `stance`。
-3. **`RENDER_DEMO_MATCH` / `RENDER_DEMO_SEED` 是临时配置**，位于 `data/levels.ts`。M4 改由关卡数据驱动出生。
-4. **相机不滚动也不缩放**（M1 就有的限制）。对撞演示里敌方在视野外，M3 要实现相机（spec §7.2：0.6x~1.2x，横向滚动）。
-5. **没有 HUD**：金币、人口、造兵按钮、战线指示器全部待做（spec §7.3）。
+## M3 关键设计（容易忘的）
 
-## M2 已知平衡问题（不是 bug，交给 M3 调）
+- **矿点在基地的战场侧**（玩家 550 / 敌方 2450），不是后方：M2 的走廊把单位钳制在 `[354, 2646]`，放在后方矿工永远走不到。
+- **矿工的姿态由工作推导**（有目标→`advance`，无目标→`hold`），因为 `createWorld` 给初始矿工 `hold`，而 `movementSystem` 对 `hold` 直接返回 —— 只给 `target` 不给姿态的话矿工永远不动。**唯一的例外是 `retreat`**：它是玩家的真实指令，必须粘住，不能被覆盖。
+- **`carrying === 0` 不等于「矿脉已空」**：整个采集过程中 `carrying` 都是 0。判定采集是否结束要看 `gatherTicksLeft`，否则矿工会每次都在第一个 tick 放弃采集、无限重来。
+- **金币与人口的时机是分开的**：矿脉在**采集完成**时扣除，金币在**抵达基地**时入账 —— 所以运金途中被打死是真实的经济损失。
+- **指令只进本帧第一个 tick**：4x 下一帧跑多个 tick，若把指令发给每个 tick，一次点击会花 4 倍金币。`advanceWorld` 的 `takeCommands` 回调**只在 `ticks > 0` 时被调用**，所以「0 tick 帧丢弃指令」这个 bug 在结构上不可能发生。
+- **速度无关的正确表述是「批处理无关」**：同样数量的 tick 必须产出相同哈希。spec §11 第 4 条原文（1x 与 4x 哈希相同）是**不可实现的**，已在 spec 中加勘误。
+- **相机 `scrollX` 不是世界左缘**：Phaser 相机 `originX = 0.5`，`worldView.x = scrollX + W/2 − (W/z)/2`。钳制必须含 `(W/z − W)/2` 偏移，否则 0.6x 时相机停在离世界右缘 400px 处 —— 不露空白，但**永远看不到敌方基地**。点击→世界坐标同理，用 `cam.getWorldPoint()`，别手算。
+- **`hashWorld` 是确定性回归的唯一守卫**：新增 `World` 字段必须同步进哈希，否则回归测试会漏检。
 
-`sim/harness.ts` 的首份对撞矩阵显示**弓箭手性价比过高**，与 spec §6.5 的设计意图（弓箭手必须有掩护才有价值）不符：
+## M2 已知平衡问题（不是 bug，交给 M3/M4 调）
+
+`sim/harness.ts` 的对撞矩阵显示**弓箭手性价比过高**，与 spec §6.5 的设计意图（弓箭手必须有掩护才有价值）不符：
 
 | 场景 | 结果 |
 |---|---|
@@ -111,22 +121,10 @@ npm run lint     # ESLint（含 sim 边界检查）
 
 疑似成因：射程 200 让弓箭手在接近阶段白拿约 6 轮齐射，而近战始终贴不上身。
 按 spec §11，这属于**平衡**（harness 的产出目标），**不**属于 M2 验收标准。
+M3 加入了经济系统但**未重新测这条** —— M4 开调时先重跑 harness，因为「造 12 个弓箭手」的时间成本现在也被纳入了。
 
 **重要提醒：R1/R2 确实生效。** 受控实验（同样 6 弓箭手 vs 同样 10 剑士，一组加 5 剑士掩护）
 显示：两者都射 45 箭，但有掩护造成 **1370** 伤害、无掩护只有 **613** —— 2.2 倍差距。
-
-
-## M2 关键设计（容易忘的）
-
-- **`retreat` 的让位权重最高（0.25）**：否则撤退单位被自己人卡死，`retreat` 完全失效。
-- **`attack` 可被推动（权重 1.0）**：若设为不可推动，密集阵型会形成「僵尸墙」，R2 的纵深设计失效。
-- **基地是让位权重 0 的不可移动障碍**，参与分离。
-- **前摇一旦开始必须走完**，出手瞬间才检查射程；超出则挥空。这是「后撤躲挥砍」的基础。
-- **目标可以是敌方基地**，用 `TargetRef` 判别联合表达。
-- **锁定用一对常量** `TARGET_ACQUIRE_RANGE=500` / `LOCK_BREAK_RANGE=700`（不是 `attackRange * 2.5`）。
-- **死亡动画在渲染层的幽灵精灵上**，sim 保持立即移除。
-- **胜负判定两个条件**：基地归零 或 某方单位归零（后者服务于无基地的 harness 场景）。
-- **`attack` 动画的接触帧必须落在 `phase = windupTicks / totalTicks`**，与伤害结算 tick 精确对齐。
 
 ## 工作方式
 
