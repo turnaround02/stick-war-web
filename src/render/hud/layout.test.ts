@@ -6,7 +6,10 @@ import {
   layoutStanceButtons,
   layoutSpeedButtons,
   resourceText,
+  speedHeaderRight,
   trainButtonState,
+  PAUSE_BUTTON,
+  SPEED_BUTTON,
   type HudMetrics,
 } from './layout';
 import { UNITS } from '../../data/units';
@@ -203,6 +206,47 @@ describe('pause button', () => {
     const speed = layoutSpeedButtons(1280, metrics);
     expect(pause.y).toBe(speed[0].y);
     expect(pause.h).toBe(speed[0].h);
+  });
+
+  /**
+   * These two assert the CONSTRAINT the layout exists to satisfy, not a
+   * restatement of how it computes. The earlier versions compared
+   * `pause.x + pause.w <= speed[0].x`, which `layoutPauseButton` guarantees by
+   * construction — it literally subtracts the width and gap — so they could not
+   * fail for any positive width. They passed while the rendered button was
+   * 108px wide against a 64px slot and visibly overlapped the header.
+   */
+  it('leaves room for the "速度" header between itself and the viewport edge', () => {
+    for (const width of [640, 1280, 1920]) {
+      const pause = layoutPauseButton(width, metrics);
+      const headerRight = speedHeaderRight(width, metrics);
+      // The header is right-aligned at headerRight, so its text must fit in the
+      // space to the LEFT of the pause button.
+      expect(headerRight, `width ${width}`).toBeLessThanOrEqual(pause.x);
+      expect(headerRight, `width ${width}`).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('leaves a gap between the pause button and the first speed button', () => {
+    // A zero gap would fuse the two into one strip. Assert the actual spacing
+    // rather than "does not overlap".
+    for (const width of [640, 1280, 1920]) {
+      const pause = layoutPauseButton(width, metrics);
+      const speed = layoutSpeedButtons(width, metrics);
+      expect(speed[0].x - (pause.x + pause.w), `width ${width}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('uses the dimensions the renderer is told to draw', () => {
+    // The layout and the drawn Rectangle are separate sources of truth; this
+    // pins the exported constants to the rect the layout returns. When they
+    // disagreed, the button was drawn 108x44 in a 64x30 slot.
+    const pause = layoutPauseButton(1280, metrics);
+    expect(pause.w).toBe(PAUSE_BUTTON.w);
+    expect(pause.h).toBe(PAUSE_BUTTON.h);
+    const speed = layoutSpeedButtons(1280, metrics);
+    expect(speed[0].w).toBe(SPEED_BUTTON.w);
+    expect(speed[0].h).toBe(SPEED_BUTTON.h);
   });
 
   it('reads Pause while running and Resume while paused', () => {

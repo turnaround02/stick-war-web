@@ -174,7 +174,8 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** Stance order for the selection, or the whole army when nothing is selected. */
-  private pushStance(stance: Stance): void {    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
+  private pushStance(stance: Stance): void {
+    const selected = selectedIdsOf(this.selection, this.world.units, 'player');
     if (selected.length > 0) {
       this.commands.push(cmdSetStance('player', selected, stance));
       return;

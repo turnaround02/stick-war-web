@@ -43,12 +43,10 @@ export const IDLE_POSE: Pose = {
 };
 
 /**
- * Keyframes per state, linearly interpolated by poseFor.
+ * Where in an attack animation the blade is shown connecting.
  *
- * The attack set is the important one: its middle keyframe is the
- * blade-contact moment and must line up with the damage tick. BattleScene
- * passes phase = windup progress, so the strike lands on the tick where the
- * renderer is showing CONTACT_PHASE.
+ * `attackPhase` maps this onto the tick the damage lands (spec §7.1's hard
+ * constraint); the keyframes below place their strike keyframe at this value.
  */
 export const CONTACT_PHASE = 0.5;
 
@@ -81,16 +79,17 @@ export function attackPhase(
   windupTicks: number,
   cooldownTicks: number,
 ): number {
-  const total = windupTicks + cooldownTicks;
-  if (total <= 0) return CONTACT_PHASE;
-
   // Still raising: 0 at the start of the windup, CONTACT_PHASE at the strike.
+  // The sim guarantees windupTicksLeft > 0 implies cooldownTicksLeft === 0, so
+  // testing the windup alone is enough to tell the two phases apart.
   if (windupTicksLeft > 0 && windupTicks > 0) {
     const elapsed = windupTicks - windupTicksLeft;
     return (elapsed / windupTicks) * CONTACT_PHASE;
   }
 
   // Recovering: CONTACT_PHASE at the strike, 1 at the end of the cooldown.
+  // A degenerate unit with no cooldown keeps the contact pose, which is also
+  // the sensible answer for the no-windup case.
   if (cooldownTicks > 0) {
     const elapsed = cooldownTicks - cooldownTicksLeft;
     return CONTACT_PHASE + (elapsed / cooldownTicks) * (1 - CONTACT_PHASE);
@@ -169,8 +168,8 @@ function lerpPose(a: Pose, b: Pose, t: number): Pose {
  * Interpolates the pose for a state at a given phase (0..1).
  *
  * Phase comes from the sim: (world.tick - stateEnteredTick) / stateDuration.
- * For `attack` the renderer passes windup progress so the contact keyframe
- * lands on the same tick the damage is applied.
+ * For `attack` the renderer passes `attackPhase(...)`, which spans the whole
+ * windup+cooldown cycle so the contact keyframe lands on the damage tick.
  */
 export function poseFor(state: UnitState, phase: number): Pose {
   const frames = POSE_KEYFRAMES[state];
