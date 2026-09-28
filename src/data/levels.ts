@@ -15,6 +15,7 @@ import {
   POP_CAP,
   START_GOLD,
   WORLD_WIDTH,
+  toTicks,
 } from './constants';
 import type { MatchConfig } from './types';
 
@@ -58,6 +59,46 @@ export const RENDER_DEMO_MATCH: MatchConfig = {
 
 /** TEMPORARY (M3): fixed seed for the render demo, so screenshots are repeatable. */
 export const RENDER_DEMO_SEED = 20260926;
+
+/**
+ * Level 1 (tutorial) — spec §8.4.
+ *
+ * The enemy has NO economy: its entire force is scripted. That is deliberate,
+ * and it is the cheapest way to teach "manage the line, not the bank" — the
+ * player faces a predictable, mounting attack with no enemy economy to model.
+ *
+ * The enemy base is half strength (1500 vs 3000) so the tutorial can be won
+ * before the player has learned to mass an army. `enemyAi: 'scripted'` is what
+ * makes cleanupSystem refuse to call an empty enemy field a victory while
+ * waves remain — otherwise this level would be won on tick 1.
+ *
+ * Wave ticks come from `toTicks(seconds)`, never from hand-written tick counts:
+ * data tables are written in seconds and converted exactly once (spec §5.1).
+ */
+export const LEVEL_1: MatchConfig = {
+  ...DEFAULT_MATCH,
+  levelId: 'level-1',
+  baseHp: { player: BASE_HP, enemy: 1500 },
+  startGold: { player: START_GOLD, enemy: 0 },
+  startMiners: { player: 3, enemy: 0 },
+  initialUnits: { player: [], enemy: [] },
+  enemyAi: 'scripted',
+  waves: [
+    { atTick: toTicks(5), units: ['swordsman', 'swordsman'] },
+    { atTick: toTicks(50), units: ['swordsman', 'swordsman', 'swordsman', 'archer'] },
+    {
+      atTick: toTicks(110),
+      units: ['swordsman', 'swordsman', 'swordsman', 'swordsman', 'archer', 'archer', 'spearman'],
+    },
+    {
+      atTick: toTicks(180),
+      units: [
+        'swordsman', 'swordsman', 'swordsman', 'swordsman',
+        'archer', 'archer', 'spearman', 'spearman',
+      ],
+    },
+  ],
+};
 
 /** Positions used by createWorld. Kept here so geometry has one source of truth. */
 export const BASE_X = { player: PLAYER_BASE_X, enemy: ENEMY_BASE_X } as const;
