@@ -33,6 +33,11 @@
    - 运动必须先于战斗（否则射程判定差一 tick）
    - 伤害结算必须先于清理（否则尸体补刀）
 6. **死亡必须两阶段**：步骤 5 标记 `state='dead'`，步骤 6 才从数组移除。
+7. **渲染层的可判定逻辑必须抽成 Phaser-free 模块并配测试。** 依赖 Phaser 的模块（`skeleton.ts`、`BattleScene.ts`）在 node 环境下测不了，于是任何**只有它们才能验证**的规则就等于没有测试。做法：把算术/约定/状态判定抽到纯模块，Phaser 只做「把结果变成对象」。
+
+   已有的例子（照这个形状写）：`stickman/rig.ts`（骨骼朝向约定）、`hud/layout.ts`（HUD 布局与按钮状态）、`render/camera.ts`（相机钳制）、`render/selection.ts`、`render/timestep.ts`（帧驱动与速度）。
+
+   **为什么是铁律**：这条是**两次同一个教训**换来的 —— 腿部朝向错了三个里程碑（腿被画成横矩形，而姿态按竖直写，每个单位每一帧都脚朝前伸），攻击接触帧错位了两个（`phaseOf` 除以风干而非整个攻击周期，刀刃视觉接触比掉血早半个前摇）。两个 bug 都**肉眼可见**、都**不影响任何测试**。它们的共同根因就是「渲染层没有测试」，而不是某一次疏忽。
 
 ## 目录速查
 
@@ -74,8 +79,9 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] 实施计划写入 `docs/superpowers/plans/2026-09-25-m1-skeleton.md`
 - [x] **M1 骨架**（已合并至 `master`）
 - [x] **M2 移动与战斗**（已合并，215 tests）
-- [x] **M3 经济与指令**（分支 `m3-economy`，17 commits，**432 tests**）
+- [x] **M3 经济与指令**（已合并，17 commits）
 - [x] **平衡修复：弓箭手过强**（判别固化为 `counter-relations.test.ts`）
+- [x] **渲染层修复**：腿部朝向、攻击接触帧、暂停按钮、4x 追赶窗口（分支 `m3-fixes`，**464 tests**）
 - [ ] **M4 AI 与关卡**
 - [ ] M5 打磨
 
@@ -95,12 +101,9 @@ npm run lint     # ESLint（含 sim 边界检查）
 
 1. **敌方无经济**：`RENDER_DEMO_MATCH` 用 `initialUnits` 给定敌方阵容，敌方矿工不采集、也不会造兵。M4 的两层 AI 战术层要接上。
 2. **关卡系统未实现**：`MatchConfig.waves` / `waveIndex` / `nextWaveTick` 无人消费，`enemyAi: 'scripted'` 分支是空的。
-3. **速度控制的暂停无按钮**：spec §7.3 列了暂停按钮，M3 只做了 Space 键（`ui.pause` / `ui.resume` 文案已就绪但未被引用）。
-4. **战线指示器未做**：spec §7.3 称之为「唯一的全局态势来源」。
-5. **4x 下追赶窗口实际只有 62.5ms**：`MAX_ACCUMULATOR_MS` 作用在**缩放后**的累加器上，而非真实时间。高倍速观察 AI 行为时更容易丢时间 —— M4 调 AI 会用到倍速，所以并入 M4 修。
-6. **`hash.ts` 现在覆盖了经济状态**（矿脉、队列、`nextUnitId`、`gatherTicksLeft`、`carrying`）—— M4 若新增 `World` 字段，记得同步加进哈希，否则确定性回归会漏检。
-7. **harness 测不了「拆基地」效率**：对局在某一方单位归零时结束，胜方没机会拆基地。§8.3 那个「矛兵对基地效率高 75%」的隐患因此无法用现有场景验证，要测需新增场景类型（例如 `noUnits`：双方只有基地，测纯拆家效率）。
-8. **`attack` 动画的接触帧疑似与伤害 tick 差半个前摇**（渲染层，待确认）。`poses.ts` 的 `CONTACT_PHASE = 0.5` 把「刀刃接触」关键帧放在**前摇中点**，但伤害在 `windupTicksLeft` 归零时结算（即 phase ≈ 1）。spec §7.1 称之为硬约束（「必须落在 `phase = windupTicks / totalTicks` 处」，而 `totalTicks` 应指**整个攻击周期**而非前摇）。M2 的验收项第 7 条（「接触帧与掉血同步」）因此可能从未真正通过。修它需要先把 `poses.ts` 的 phase 定义与 `BattleScene.phaseOf` 对齐，属独立改动 —— 别混进骨骼修复里。
+3. **战线指示器未做**：spec §7.3 称之为「唯一的全局态势来源」。（暂停按钮、4x 追赶窗口、攻击接触帧已在 `m3-fixes` 修复。）
+4. **`hash.ts` 现在覆盖了经济状态**（矿脉、队列、`nextUnitId`、`gatherTicksLeft`、`carrying`）—— M4 若新增 `World` 字段，记得同步加进哈希，否则确定性回归会漏检。
+5. **harness 测不了「拆基地」效率**：对局在某一方单位归零时结束，胜方没机会拆基地。§8.3 那个「矛兵对基地效率高 75%」的隐患因此无法用现有场景验证，要测需新增场景类型（例如 `noUnits`：双方只有基地，测纯拆家效率）。
 
 ## M3 关键设计（容易忘的）
 

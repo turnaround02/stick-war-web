@@ -15,11 +15,16 @@ import { t } from '../../i18n';
 import { UNITS } from '../../data/units';
 import { SPEED_STEPS, type GameSpeed } from '../timestep';
 import {
+  layoutPauseButton,
   layoutSpeedButtons,
   layoutStanceButtons,
   layoutTrainButtons,
+  pauseLabel,
   resourceText,
+  speedHeaderRight,
   trainButtonState,
+  PAUSE_BUTTON,
+  SPEED_BUTTON,
   STANCE_BUTTONS,
   TRAINABLE,
   type HudMetrics,
@@ -45,6 +50,8 @@ export interface Hud {
   layout(width: number, height: number): void;
   /** Highlights the active speed button. */
   setSpeed(speed: GameSpeed): void;
+  /** Updates the pause button's label and highlight. */
+  setPaused(paused: boolean): void;
   destroy(): void;
 }
 
@@ -52,6 +59,7 @@ export interface HudCallbacks {
   onTrain(typeId: UnitTypeId): void;
   onStance(stance: Stance): void;
   onSpeedChange(speed: GameSpeed): void;
+  onTogglePause(): void;
 }
 
 /**
@@ -85,9 +93,19 @@ export function createHud(
     reason: Phaser.GameObjects.Text;
   }
 
-  const makeButton = (onClick: () => void): Button => {
+  /**
+   * Builds a button at an EXPLICIT size.
+   *
+   * The size must be passed in rather than defaulted: the bottom bar's buttons
+   * are 108x44 but the top-right speed/pause cluster is only 52x30 / 64x30, and
+   * a Rectangle keeps whatever size it was constructed with. Defaulting to the
+   * bar size while positioning from the smaller layout slot drew 108-wide rects
+   * centred on 64-wide slots, so the pause button overlapped the "速度" header
+   * and fused with the speed buttons.
+   */
+  const makeButton = (w: number, h: number, onClick: () => void): Button => {
     const rect = scene.add
-      .rectangle(0, 0, metrics.buttonW, metrics.buttonH, BUTTON_ON)
+      .rectangle(0, 0, w, h, BUTTON_ON)
       .setScrollFactor(0)
       .setDepth(BAR_DEPTH + 1)
       .setInteractive({ useHandCursor: true });
@@ -107,22 +125,28 @@ export function createHud(
     return { rect, label, reason };
   };
 
+  const barButton = (onClick: () => void) => makeButton(metrics.buttonW, metrics.buttonH, onClick);
+
   const trainButtons = TRAINABLE.map((typeId) => ({
     typeId,
-    ...makeButton(() => callbacks.onTrain(typeId)),
+    ...barButton(() => callbacks.onTrain(typeId)),
   }));
 
   const stanceButtons = STANCE_BUTTONS.map(({ stance, key }) => ({
     stance,
     label0: t(key),
-    ...makeButton(() => callbacks.onStance(stance)),
+    ...barButton(() => callbacks.onStance(stance)),
   }));
 
   // ── Speed buttons (top-right) ─────────────────────────────────────
   const speedButtons = SPEED_STEPS.map((speed) => ({
     speed,
-    ...makeButton(() => callbacks.onSpeedChange(speed)),
+    ...makeButton(SPEED_BUTTON.w, SPEED_BUTTON.h, () => callbacks.onSpeedChange(speed)),
   }));
+
+  // ── Pause button (left of the speed group) ────────────────────────
+  const pauseButton = makeButton(PAUSE_BUTTON.w, PAUSE_BUTTON.h, () => callbacks.onTogglePause());
+  pauseButton.reason.setVisible(false);
   const speedHeader = scene.add
     .text(0, 0, t('ui.speed'), { fontFamily: FONT, fontSize: '13px', color: TEXT_LIGHT })
     .setOrigin(1, 0.5)
@@ -137,8 +161,13 @@ export function createHud(
       const stanceRects = layoutStanceButtons(width, height, metrics);
       const speedRects = layoutSpeedButtons(width, metrics);
 
+      // Size AND position both come from the layout rect. Setting the size here
+      // rather than at construction is what makes "drawn rect != layout slot"
+      // impossible: the Rectangle is resized to whatever the layout decided, so
+      // the two cannot disagree even if a future edit changes a constant.
       trainRects.forEach((r, i) => {
         const b = trainButtons[i];
+        b.rect.setSize(r.w, r.h);
         b.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
         b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2 - 7);
         b.reason.setPosition(r.x + r.w / 2, r.y + r.h / 2 + 13);
@@ -146,19 +175,27 @@ export function createHud(
 
       stanceRects.forEach((r, i) => {
         const b = stanceButtons[i];
+        b.rect.setSize(r.w, r.h);
         b.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
         b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2);
       });
 
       speedRects.forEach((r, i) => {
         const b = speedButtons[i];
+        b.rect.setSize(r.w, r.h);
         b.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
         b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2);
       });
 
-      // The header sits just left of the first speed button.
-      const first = speedRects[0];
-      speedHeader.setPosition(first.x - 10, first.y + first.h / 2);
+      const pr = layoutPauseButton(width, metrics);
+      pauseButton.rect.setSize(pr.w, pr.h);
+      pauseButton.rect.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
+      pauseButton.label.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
+
+      // The header sits just left of the pause button, from the same layout
+      // data that positions the button — computing it here is what previously
+      // let the text land inside the pause rectangle.
+      speedHeader.setPosition(speedHeaderRight(width, metrics), pr.y + pr.h / 2);
 
       barBg.clear();
       barBg.fillStyle(BG_COLOR, BG_ALPHA);
@@ -186,12 +223,17 @@ export function createHud(
       }
     },
 
+    setPaused(paused: boolean): void {
+      pauseButton.label.setText(pauseLabel(paused));
+      pauseButton.rect.setFillStyle(paused ? BUTTON_ACTIVE : BUTTON_ON);
+    },
+
     destroy(): void {
       resourceBg.destroy();
       resourceText_.destroy();
       barBg.destroy();
       speedHeader.destroy();
-      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons]) {
+      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton]) {
         b.rect.destroy();
         b.label.destroy();
         b.reason.destroy();

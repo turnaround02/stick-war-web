@@ -13,6 +13,7 @@ import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
+import { attackPhase } from '../stickman/poses';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
 const GROUND_FRACTION = 2 / 3;
@@ -79,9 +80,11 @@ export class BattleScene extends Phaser.Scene {
         this.speed = speed;
         this.hud.setSpeed(speed);
       },
+      onTogglePause: () => this.togglePause(),
     });
     // Highlight the initial speed so the buttons do not all look inactive on load.
     this.hud.setSpeed(this.speed);
+    this.hud.setPaused(this.paused);
 
     this.syncStickmen();
     this.layout();
@@ -120,7 +123,7 @@ export class BattleScene extends Phaser.Scene {
         if (e.code === 'KeyQ') this.pushStance('advance');
         if (e.code === 'KeyW') this.pushStance('hold');
         if (e.code === 'KeyE') this.pushStance('retreat');
-        if (e.code === 'Space') this.paused = !this.paused;
+        if (e.code === 'Space') this.togglePause();
       });
       kb.on('keyup', (e: KeyboardEvent) => this.keys.update(e.code, false));
     }
@@ -157,6 +160,17 @@ export class BattleScene extends Phaser.Scene {
 
     if (hit) this.selection.select(hit.id);
     else this.selection.clear();
+  }
+
+  /**
+   * Flips pause and keeps the HUD in step.
+   *
+   * One method for both the Space key and the button, so the two can never
+   * disagree about whether the game is paused.
+   */
+  private togglePause(): void {
+    this.paused = !this.paused;
+    this.hud.setPaused(this.paused);
   }
 
   /** Stance order for the selection, or the whole army when nothing is selected. */
@@ -338,14 +352,14 @@ export class BattleScene extends Phaser.Scene {
   /**
    * Animation phase for a unit, 0..1.
    *
-   * For `attack` this is windup progress, NOT time in state, so the contact
-   * keyframe lands on the same tick the damage is applied (spec §7.1).
+   * For `attack` this spans the WHOLE attack cycle (windup + cooldown), which
+   * is what puts the contact keyframe on the same tick the damage lands — see
+   * `attackPhase`. For every other state it is time in state modulo the cycle.
    */
   private phaseOf(unit: Unit): number {
     if (unit.state === 'attack') {
-      const total = UNIT_TICKS[unit.typeId].windup;
-      if (total <= 0) return 0;
-      return 1 - unit.windupTicksLeft / total;
+      const t = UNIT_TICKS[unit.typeId];
+      return attackPhase(unit.windupTicksLeft, unit.cooldownTicksLeft, t.windup, t.attackCooldown);
     }
     const cycle = STATE_CYCLE_TICKS[unit.state] ?? 30;
     return ((this.world.tick - unit.stateEnteredTick) % cycle) / cycle;
