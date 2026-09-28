@@ -119,6 +119,12 @@ function buildConfig(scenario: Scenario): MatchConfig {
     // off-map, where no unit can reach them.
     noBases: scenario.withBases === false,
     difficultyMult: 1,
+    // The harness measures PURE UNIT MATCHUPS, so the enemy must not run a
+    // tactical layer: an AI that bought reinforcements or re-issued stance
+    // orders mid-fight would make a scenario measure its own profile instead of
+    // the unit stats the scenario is about.
+    enemyAi: 'scripted',
+    waves: [],
   };
 }
 

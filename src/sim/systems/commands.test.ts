@@ -27,6 +27,7 @@ function makeWorld(units: Unit[] = []): World {
     waveIndex: 0,
     nextWaveTick: Number.MAX_SAFE_INTEGER,
     waves: [],
+    aiProfile: 'none',
     outcome: 'ongoing',
     levelId: 'test',
     worldWidth: 3000,
@@ -78,6 +79,39 @@ describe('commandsSystem — train', () => {
     commandsSystem(ctx(world, []));
     expect(world.trainingQueue.player).toHaveLength(0);
     expect(world.gold.player).toBe(500);
+  });
+});
+
+describe('commandsSystem — AI profile gate', () => {
+  it("does not run the tactical layer when the profile is 'none'", () => {
+    // A scripted level's enemy has no economy, so a tactical layer would only
+    // queue orders it can never afford. More importantly it must not touch the
+    // enemy's stance either.
+    const e = spawnUnit({ id: 1, side: 'enemy', typeId: 'swordsman', x: 2600 });
+    const world = makeWorld([e]);
+    world.aiProfile = 'none';
+    world.tick = 0;
+    commandsSystem(ctx(world, []));
+    expect(world.trainingQueue.enemy).toHaveLength(0);
+    expect(e.stance).toBe('hold');
+  });
+
+  it("runs it when the profile is 'standard'", () => {
+    const e = spawnUnit({ id: 1, side: 'enemy', typeId: 'swordsman', x: 2600 });
+    const world = makeWorld([e]);
+    world.aiProfile = 'standard';
+    world.tick = 0;
+    commandsSystem(ctx(world, []));
+    // It has gold and no miners, so it buys a miner first.
+    expect(world.trainingQueue.enemy.map((o) => o.typeId)).toContain('miner');
+  });
+
+  it('still applies player commands when the AI profile is none', () => {
+    const world = makeWorld();
+    world.aiProfile = 'none';
+    commandsSystem(ctx(world, [{ kind: 'train', side: 'player', typeId: 'swordsman' }]));
+    expect(world.trainingQueue.player).toHaveLength(1);
+    expect(world.trainingQueue.enemy).toHaveLength(0);
   });
 });
 

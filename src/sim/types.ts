@@ -118,6 +118,13 @@ export interface World {
    * enemy units are still due. Empty for economy-only matches.
    */
   waves: WaveScript[];
+  /**
+   * Which tactical profile the enemy runs. Derived from MatchConfig.enemyAi.
+   * `none` means no tactical layer at all — the right setting for a scripted
+   * level (no enemy economy) and for the balance harness, which measures pure
+   * unit matchups and must not have an AI spend gold or issue stance orders.
+   */
+  aiProfile: 'none' | 'standard';
   outcome: Outcome;
   levelId: string;
 

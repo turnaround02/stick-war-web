@@ -97,8 +97,14 @@ describe('M2 acceptance 3: results are reproducible', () => {
   it('hashes identically after a step-by-step replay', () => {
     // The strongest form: drive the sim manually and confirm the hash matches
     // the harness's, proving the harness adds no hidden state.
+    //
+    // `enemyAi: 'scripted'` matches what the harness builds (it measures pure
+    // unit matchups), so both routes run the same systems. Without it the
+    // manual world would run a tactical layer the harness's does not, and this
+    // would be comparing two different simulations.
     const config: MatchConfig = {
       ...DEFAULT_MATCH,
+      enemyAi: 'scripted',
       startMiners: { player: 0, enemy: 0 },
       initialUnits: {
         player: ['archer', 'swordsman'],

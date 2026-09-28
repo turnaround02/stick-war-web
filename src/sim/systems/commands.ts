@@ -12,24 +12,49 @@
  * Commands are fire-and-forget: an unaffordable order is dropped, not queued.
  */
 
+import { decideCommands } from '../tactic';
+import { ENEMY_STANDARD } from '../ai-profile';
 import { queueUnit } from '../training';
-import type { Side, Stance, TickContext, World } from '../types';
+import type { Command, Side, Stance, TickContext, World } from '../types';
 
 export function commandsSystem(ctx: TickContext): void {
   const { world, commands } = ctx;
 
-  for (const command of commands) {
-    switch (command.kind) {
-      case 'train':
-        // A rejected order changes nothing at all: no gold spent, nothing
-        // queued. The UI greys the button out; the sim just refuses.
-        queueUnit(world, command.side, command.typeId);
-        break;
-
-      case 'setStance':
-        applyStance(world, command.side, command.unitIds, command.stance);
-        break;
+  // The tactical layer runs FIRST, in the same step that consumes its output,
+  // so an AI order takes effect on the tick it was decided. This is the spec's
+  // own split (§9.1): `commands` is the tactical layer, `ai` is the unit layer.
+  //
+  // `aiProfile: 'none'` skips it entirely. Two callers need that: a scripted
+  // level (no enemy economy, so there is nothing to spend) and the balance
+  // harness (which measures pure unit matchups and must not have an AI buying
+  // units or re-issuing stance orders mid-fight).
+  if (world.aiProfile === 'standard') {
+    for (const command of decideCommands(world, 'enemy', ENEMY_STANDARD)) {
+      consume(world, command);
     }
+  }
+
+  // Player commands are consumed last. That favours neither side: the two
+  // sides' orders cannot overlap (each touches only its own units), so the
+  // order only matters within one side, and a player issues at most one batch
+  // per frame.
+  for (const command of commands) {
+    consume(world, command);
+  }
+}
+
+/** Applies one command. Shared by the AI layer and the player's input. */
+function consume(world: World, command: Command): void {
+  switch (command.kind) {
+    case 'train':
+      // A rejected order changes nothing at all: no gold spent, nothing
+      // queued. The UI greys the button out; the sim just refuses.
+      queueUnit(world, command.side, command.typeId);
+      break;
+
+    case 'setStance':
+      applyStance(world, command.side, command.unitIds, command.stance);
+      break;
   }
 }
 

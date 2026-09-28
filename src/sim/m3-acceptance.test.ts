@@ -195,6 +195,9 @@ describe('M3 acceptance 3: commands close', () => {
     const world = createWorld(
       {
         ...ECONOMY_MATCH,
+        // Scripted so no tactical layer re-issues the enemy's stance: this test
+        // is about the side check, and an AI order would mask the result.
+        enemyAi: 'scripted',
         startMiners: { player: 0, enemy: 0 },
         initialUnits: { player: [], enemy: ['swordsman'] },
         initialStance: 'hold',

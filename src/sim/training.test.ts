@@ -30,6 +30,7 @@ function makeWorld(units: Unit[] = []): World {
     waveIndex: 0,
     nextWaveTick: Number.MAX_SAFE_INTEGER,
     waves: [],
+    aiProfile: 'none',
     outcome: 'ongoing',
     levelId: 'test',
     worldWidth: 3000,
