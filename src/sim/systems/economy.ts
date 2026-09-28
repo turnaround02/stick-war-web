@@ -15,12 +15,17 @@ import { UNIT_TICKS } from '../../data/unitTicks';
 import { MINE_ARRIVAL_TOLERANCE, advanceGather, tryBankGold } from '../economy';
 import { targetX } from '../targeting';
 import { advanceTrainingQueue } from '../training';
+import { advanceWaves } from '../waves';
 import type { Side, TickContext, World } from '../types';
 
 const SIDES: readonly Side[] = ['player', 'enemy'];
 
 export function economySystem(ctx: TickContext): void {
   const { world } = ctx;
+
+  // Waves first: a unit spawned this tick should take part in this tick's
+  // movement and combat, not wait a frame.
+  advanceWaves(world);
 
   for (const unit of world.units) {
     if (unit.typeId !== 'miner') continue;
