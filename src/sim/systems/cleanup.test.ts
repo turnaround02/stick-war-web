@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { cleanupSystem } from './cleanup';
 import { spawnUnit } from '../spawn';
-import type { TickContext, Unit, World } from '../types';
+import { createWorld } from '../createWorld';
+import { step } from '../tick';
+import { DEFAULT_MATCH } from '../../data/levels';
+import type { MatchConfig, TickContext, Unit, World } from '../types';
 
 function makeWorld(units: Unit[]): World {
   return {
@@ -26,6 +29,7 @@ function makeWorld(units: Unit[]): World {
     stats: { player: { damageDealt: 0 }, enemy: { damageDealt: 0 } },
     waveIndex: 0,
     nextWaveTick: Number.MAX_SAFE_INTEGER,
+    waves: [],
     outcome: 'ongoing',
     levelId: 'test',
     worldWidth: 3000,
@@ -175,5 +179,79 @@ describe('cleanupSystem — outcome', () => {
     });
     cleanupSystem(ctx(world));
     expect(world.projectiles).toHaveLength(0);
+  });
+});
+
+/**
+ * The level-1 shape: the enemy has no economy and no starting units, so its
+ * entire force arrives as scripted waves. "Enemy units == 0" is therefore TRUE
+ * on tick 1, and without this guard the level was won before it began.
+ */
+function scriptedMatch(over: Partial<MatchConfig> = {}): MatchConfig {
+  return {
+    ...DEFAULT_MATCH,
+    levelId: 'scripted-probe',
+    startMiners: { player: 3, enemy: 0 },
+    initialUnits: { player: [], enemy: [] },
+    enemyAi: 'scripted',
+    waves: [{ atTick: 150, units: ['swordsman', 'swordsman'] }],
+    ...over,
+  };
+}
+
+describe('cleanupSystem — scripted waves', () => {
+  it('does NOT declare a win on tick 1 when enemy units are all still in waves', () => {
+    const world = createWorld(scriptedMatch(), 1);
+    step(world, []);
+    expect(world.outcome).toBe('ongoing');
+  });
+
+  it('stays ongoing across many ticks while a wave is still due', () => {
+    const world = createWorld(scriptedMatch(), 1);
+    for (let i = 0; i < 100; i++) step(world, []);
+    expect(world.outcome).toBe('ongoing');
+  });
+
+  it('declares a win once every wave has spawned AND been killed', () => {
+    // waveIndex == waves.length means nothing more is due, so an empty enemy
+    // field IS annihilation. Built directly rather than by running the wave
+    // system, so this test isolates the cleanup rule from wave spawning.
+    const e = spawnUnit({ id: 1, side: 'enemy', typeId: 'swordsman', x: 2600 });
+    e.state = 'dead';
+    e.hp = 0;
+    const world = makeWorld([spawnUnit({ id: 2, side: 'player', typeId: 'swordsman', x: 100 }), e]);
+    world.waves = [{ atTick: 1, units: ['swordsman'] }];
+    world.waveIndex = 1;
+    cleanupSystem(ctx(world));
+    expect(world.outcome).toBe('playerWin');
+  });
+
+  it('never declares a win by annihilation when waves are endless', () => {
+    // Endless mode: there is always another wave, so "the enemy is out of
+    // units" is never a victory — endless can only be LOST.
+    const world = createWorld(scriptedMatch({ endless: true, waves: [] }), 1);
+    for (let i = 0; i < 30; i++) step(world, []);
+    expect(world.outcome).toBe('ongoing');
+  });
+
+  it('still loses when the player is wiped, even mid-waves', () => {
+    // The guard must only weaken the ENEMY-wiped condition, never the player's.
+    const world = createWorld(scriptedMatch(), 1);
+    step(world, []);
+    for (const u of world.units) {
+      if (u.side === 'player') {
+        u.state = 'dead';
+        u.hp = 0;
+      }
+    }
+    step(world, []);
+    expect(world.outcome).toBe('playerLose');
+  });
+
+  it('still wins on an enemy base falling, waves or not', () => {
+    const world = createWorld(scriptedMatch(), 1);
+    world.bases.enemy.hp = 0;
+    step(world, []);
+    expect(world.outcome).toBe('playerWin');
   });
 });

@@ -95,6 +95,7 @@ export function createWorld(config: MatchConfig, seed: number): World {
     },
     waveIndex: 0,
     nextWaveTick: config.waves.length > 0 ? config.waves[0].atTick : Number.MAX_SAFE_INTEGER,
+    waves: config.waves,
     outcome: 'ongoing',
     levelId: config.levelId,
     worldWidth: config.worldWidth,

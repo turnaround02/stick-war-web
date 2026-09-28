@@ -48,6 +48,9 @@ function removeStaleProjectiles(world: World): void {
  *   2. a side has no units left — this is what lets the base-less harness
  *      matchups reach a verdict instead of running to maxTicks
  *
+ * Condition 2 is qualified for the enemy: it only counts as annihilation when
+ * no wave is still due (see enemyHasUnitsPending).
+ *
  * When both conditions fire on the same tick the player loses: an ambiguous
  * mutual wipe is resolved against the player so the outcome is never
  * undefined.
@@ -62,7 +65,13 @@ function resolveOutcome(world: World): void {
   const enemyUnits = world.units.filter((u) => u.side === 'enemy').length;
 
   const playerWiped = playerUnits === 0;
-  const enemyWiped = enemyUnits === 0;
+  // "No units left" is only annihilation if nothing more is on its way. A
+  // scripted level's enemy force lives ENTIRELY in its wave table, so at t=0 it
+  // legitimately has zero units on the field — treating that as annihilation
+  // declared the player the winner on tick 1 and the level was over before the
+  // first wave. Endless mode is the same shape but never exhausts its waves,
+  // which is exactly right: endless can only be lost, never won by clearing.
+  const enemyWiped = enemyUnits === 0 && !enemyHasUnitsPending(world);
 
   if (playerBaseDown || playerWiped) {
     world.outcome = 'playerLose';
@@ -72,4 +81,10 @@ function resolveOutcome(world: World): void {
   if (enemyBaseDown || enemyWiped) {
     world.outcome = 'playerWin';
   }
+}
+
+/** Whether the enemy still has units due to arrive (spec §8.4). */
+function enemyHasUnitsPending(world: World): boolean {
+  if (world.endless) return true;
+  return world.waveIndex < world.waves.length;
 }

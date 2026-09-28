@@ -26,6 +26,7 @@ function makeWorld(units: Unit[] = []): World {
     stats: { player: { damageDealt: 0 }, enemy: { damageDealt: 0 } },
     waveIndex: 0,
     nextWaveTick: Number.MAX_SAFE_INTEGER,
+    waves: [],
     outcome: 'ongoing',
     levelId: 'test',
     worldWidth: 3000,

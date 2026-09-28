@@ -113,6 +113,11 @@ export interface World {
   waveIndex: number;
   /** Tick at which the next wave should spawn. */
   nextWaveTick: number;
+  /**
+   * Scripted wave table, copied off MatchConfig so cleanup can tell whether more
+   * enemy units are still due. Empty for economy-only matches.
+   */
+  waves: WaveScript[];
   outcome: Outcome;
   levelId: string;
 
