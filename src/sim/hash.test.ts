@@ -158,3 +158,52 @@ describe('hashWorld — M3 economy state', () => {
     expect(hashWorld(w)).not.toBe(before);
   });
 });
+
+describe('hashWorld — M4 wave state', () => {
+  const scripted: MatchConfig = {
+    ...DEFAULT_MATCH,
+    levelId: 'hash-wave',
+    startMiners: { player: 1, enemy: 0 },
+    initialUnits: { player: [], enemy: [] },
+    enemyAi: 'scripted',
+    waves: [{ atTick: 30, units: ['swordsman'] }],
+  };
+
+  it('changes when waveIndex changes', () => {
+    // waveIndex decides what arrives NEXT, so two worlds that look identical
+    // now would diverge on the following tick.
+    const a = createWorld(scripted, 1);
+    const b = createWorld(scripted, 1);
+    b.waveIndex = 1;
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('distinguishes different wave tables', () => {
+    const a = createWorld(scripted, 1);
+    const b = createWorld({ ...scripted, waves: [{ atTick: 30, units: ['archer'] }] }, 1);
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('distinguishes wave tables that differ only in timing', () => {
+    const a = createWorld(scripted, 1);
+    const b = createWorld({ ...scripted, waves: [{ atTick: 31, units: ['swordsman'] }] }, 1);
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('changes when the aiProfile changes', () => {
+    const a = createWorld(scripted, 1);
+    const b = createWorld(scripted, 1);
+    b.aiProfile = 'standard';
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('does not depend on nextWaveTick, which nothing reads', () => {
+    // Kept in the type for compatibility but not consumed by advanceWaves,
+    // which reads atTick straight off the table. Hashing it would make the
+    // digest depend on a field with no effect.
+    const a = createWorld(scripted, 1);
+    const b = createWorld(scripted, 1);
+    b.nextWaveTick = 999;
+    expect(hashWorld(a)).toBe(hashWorld(b));
+  });
+});

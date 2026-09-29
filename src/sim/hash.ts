@@ -53,6 +53,15 @@ export function hashWorld(world: World): string {
   // look identical now would diverge on the following spawn.
   parts.push(`nextId=${world.nextUnitId}`);
   parts.push(`wave=${world.waveIndex}`);
+
+  // The tactical profile and the wave table are state, not scenery: they decide
+  // what the enemy builds and when the next wave arrives, so two worlds with
+  // the same units can still diverge. Hashing them keeps the determinism guard
+  // honest once M4 consumes them.
+  parts.push(`ai=${world.aiProfile}`);
+  for (const w of world.waves) {
+    parts.push(`waveAt${w.atTick}=${w.units.join(',')}`);
+  }
   for (const side of ['player', 'enemy'] as const) {
     const q = world.trainingQueue[side]
       .map((o) => `${o.typeId}:${o.ticksLeft}`)
