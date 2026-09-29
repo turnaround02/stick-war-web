@@ -79,6 +79,47 @@ describe('decideCommands — economy first', () => {
     expect(trains(cmds).map((c) => c.typeId)).not.toContain('miner');
   });
 
+  it('counts QUEUED miners toward the target, not just spawned ones', () => {
+    // Regression: counting only units on the field made the AI queue another
+    // miner on every decision while the first ones were still training. A miner
+    // takes 5s, so it spent its whole bankroll on miners and never built a
+    // soldier — it lost every level without ever fighting.
+    const world = createWorld(economyMatch(), 1);
+    world.gold.enemy = 100000;
+    // Target minus one spawned, plus one still in training == target reached.
+    withArmy(world, 'enemy', 'miner', ENEMY_STANDARD.minerTarget - 1);
+    world.trainingQueue.enemy.push({ typeId: 'miner', ticksLeft: 30 });
+    expect(trains(decideAt(world, INTERVAL, ENEMY_STANDARD)).map((c) => c.typeId)).not.toContain(
+      'miner',
+    );
+  });
+
+  it('keeps queueing miners while they are still short of the target', () => {
+    const world = createWorld(economyMatch(), 1);
+    world.gold.enemy = 100000;
+    world.trainingQueue.enemy.push({ typeId: 'miner', ticksLeft: 30 });
+    expect(trains(decideAt(world, INTERVAL, ENEMY_STANDARD)).map((c) => c.typeId)).toContain(
+      'miner',
+    );
+  });
+
+  it('builds an army within the opening bankroll', () => {
+    // The end-to-end shape of the bug: with the level-1 opening (3 miners, 200
+    // gold) the AI must reach a soldier well within a minute, not stall on
+    // miners forever.
+    const world = createWorld(economyMatch({ startGold: { player: 0, enemy: 200 } }), 1);
+    withArmy(world, 'enemy', 'miner', 3);
+
+    let sawSoldier = false;
+    for (let d = 0; d < 60 && !sawSoldier; d++) {
+      world.tick = d * ENEMY_STANDARD.decisionIntervalTicks;
+      for (const c of decideCommands(world, 'enemy', ENEMY_STANDARD)) {
+        if (c.kind === 'train' && c.typeId !== 'miner') sawSoldier = true;
+      }
+    }
+    expect(sawSoldier).toBe(true);
+  });
+
   it('trains exactly one unit per decision', () => {
     // Two per decision would double the rate the profile was tuned for.
     const world = createWorld(economyMatch(), 1);

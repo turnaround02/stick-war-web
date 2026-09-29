@@ -12,10 +12,12 @@
 
 import { DEFAULT_MATCH } from '../data/levels';
 import { UNITS, type UnitTypeId } from '../data/units';
+import { PLAYER_REFERENCE } from './ai-profile';
 import { createWorld } from './createWorld';
 import { hashWorld } from './hash';
+import { decideCommands } from './tactic';
 import { step } from './tick';
-import type { MatchConfig, Side } from './types';
+import type { Command, MatchConfig, Outcome, Side } from './types';
 
 /** Generous ceiling: 6000 ticks is 3.3 minutes of game time. */
 export const DEFAULT_MAX_TICKS = 6000;
@@ -81,6 +83,55 @@ function toWinner(outcome: string): 'player' | 'enemy' | 'draw' {
   if (outcome === 'playerWin') return 'player';
   if (outcome === 'playerLose') return 'enemy';
   return 'draw';
+}
+
+/** A whole-match result: the outcome plus how it got there. */
+export interface MatchResult {
+  outcome: Outcome;
+  ticks: number;
+  hash: string;
+  survivors: Record<Side, number>;
+  /** How many scripted waves had spawned by the end. */
+  wavesSpawned: number;
+}
+
+/**
+ * Runs a complete level with BOTH sides driven by the tactical layer.
+ *
+ * `playerProfile` names the profile for the player's side: 'reference' for the
+ * competent-player proxy, 'none' for a player who does nothing. This is what
+ * makes "the level is winnable" a deterministic assertion rather than a claim
+ * about human skill (spec §11's M4 acceptance).
+ *
+ * The enemy's own tactical layer comes from the level's `enemyAi` via
+ * createWorld, so a scripted level is driven purely by its waves.
+ */
+export function runMatch(
+  config: MatchConfig,
+  seed: number,
+  playerProfile: 'reference' | 'none',
+  maxTicks: number = DEFAULT_MAX_TICKS * 2,
+): MatchResult {
+  const world = createWorld(config, seed);
+
+  let ticks = 0;
+  while (world.outcome === 'ongoing' && ticks < maxTicks) {
+    const commands: Command[] =
+      playerProfile === 'reference' ? decideCommands(world, 'player', PLAYER_REFERENCE) : [];
+    step(world, commands);
+    ticks += 1;
+  }
+
+  return {
+    outcome: world.outcome,
+    ticks,
+    hash: hashWorld(world),
+    survivors: {
+      player: world.units.filter((u) => u.side === 'player').length,
+      enemy: world.units.filter((u) => u.side === 'enemy').length,
+    },
+    wavesSpawned: world.waveIndex,
+  };
 }
 
 /**

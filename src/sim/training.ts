@@ -90,6 +90,14 @@ export function advanceTrainingQueue(world: World, side: Side): void {
  * separation would resolve it, but the result is a violent burst that can shove
  * units past the base front and scramble the formation. Searching outward is a
  * few lines and makes the spawn position predictable enough to assert on.
+ *
+ * Only units the newcomer would actually be separated from count as blockers.
+ * Miners are transparent to combat units (they must be able to walk through
+ * their own front — see separationSystem), so letting a crowd of miners push a
+ * new soldier 130px up the field made it arrive alone, ahead of the line that
+ * was supposed to screen it, and die without ever fighting in formation. The
+ * spawn point must depend on the BATTLE line, not on where the economy happens
+ * to be standing.
  */
 export function findSpawnX(world: World, side: Side, typeId: UnitTypeId): number {
   const base = world.bases[side];
@@ -97,16 +105,19 @@ export function findSpawnX(world: World, side: Side, typeId: UnitTypeId): number
   const radius = UNITS[typeId].bodyRadius;
   const front = base.x + dir * (BASE_RADIUS + radius);
 
+  const spawningMiner = typeId === 'miner';
+  const blockers = world.units.filter(
+    (u) => u.side === side && (u.typeId === 'miner') === spawningMiner,
+  );
+
   // Step outward in units of this type's width until the spot is clear.
   const step = radius * 2 + SPAWN_CLEARANCE;
   for (let i = 0; i < 200; i++) {
     const x = front + dir * i * step;
     if (x < 0 || x > world.worldWidth) break;
 
-    const blocked = world.units.some(
-      (u) =>
-        u.side === side &&
-        Math.abs(u.x - x) < UNITS[u.typeId].bodyRadius + radius + SPAWN_CLEARANCE,
+    const blocked = blockers.some(
+      (u) => Math.abs(u.x - x) < UNITS[u.typeId].bodyRadius + radius + SPAWN_CLEARANCE,
     );
     if (!blocked) return x;
   }

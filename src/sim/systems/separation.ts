@@ -36,10 +36,16 @@ export function separationSystem(ctx: TickContext): void {
     const allies = world.units.filter((u) => u.side === side);
     if (allies.length === 0) continue;
 
+    // Travel direction comes from this tick's integrated motion (x - prevX),
+    // captured BEFORE any separation moves anyone. Reading it mid-sweep would
+    // let the sign flip once a unit had been pushed past its own start point.
+    const travel = new Map<number, number>();
+    for (const u of allies) travel.set(u.id, travelDirection(u));
+
     // Total order: ties on x are broken by id. Never rely on sort stability.
     allies.sort((a, b) => (a.x !== b.x ? a.x - b.x : a.id - b.id));
 
-    separateAllies(allies);
+    separateAllies(allies, travel);
   }
 
   // 4. Re-clamp in case separation pushed anyone out of bounds.
@@ -66,14 +72,71 @@ export function separationSystem(ctx: TickContext): void {
  *    so it closes any residual violation. It only fires when a violation
  *    remains, so it costs nothing for already-separated units.
  */
-function separateAllies(allies: Unit[]): void {
+function separateAllies(allies: Unit[], travel: Map<number, number>): void {
   for (let i = 1; i < allies.length; i++) {
-    pushPair(allies[i - 1], allies[i]);
+    pushPair(allies[i - 1], allies[i], travel);
   }
   for (let i = allies.length - 2; i >= 0; i--) {
-    pushPair(allies[i], allies[i + 1]);
+    pushPair(allies[i], allies[i + 1], travel);
   }
-  resolveResidualOverlap(allies);
+  // Passing through REORDERS a head-on pair, so restore the monotone
+  // precondition the residual sweep relies on. Gated on the group containing a
+  // miner at all: a group with none cannot pass anything through, and
+  // re-sorting it here would change the outcome for armies that this fix has no
+  // business touching.
+  if (allies.some((u) => u.typeId === 'miner')) {
+    allies.sort((a, b) => (a.x !== b.x ? a.x - b.x : a.id - b.id));
+  }
+  resolveResidualOverlap(allies, travel);
+}
+
+/**
+ * Which way along X a unit is travelling this tick, from its integrated step.
+ * 0 means stationary (holding, gathering, swinging, or dead).
+ */
+function travelDirection(unit: Unit): number {
+  const moved = unit.x - unit.prevX;
+  if (moved > 1e-9) return 1;
+  if (moved < -1e-9) return -1;
+  return 0;
+}
+
+/**
+ * Whether a same-side pair should ignore each other entirely.
+ *
+ * The battlefield is a single axis with a mine at one end and a base at the
+ * other, so MINERS necessarily travel BOTH ways along one lane while the combat
+ * line holds position between them. Head-on units cannot pass: integration
+ * moves each one toward the other, then separation pushes each one straight
+ * back, and at minimum spacing the two cancel exactly — a permanent deadlock,
+ * not a slow-down. A stationary unit is worse still, because there is nothing
+ * to give way.
+ *
+ * Measured, before this rule: one miner produced 2.33 gold/s (matching spec
+ * §8.3) but twelve produced 0.22 gold/s and then stopped — the first load was
+ * also the last. A holding swordsman was shoved 7px backward by the miner
+ * stream and never advanced, so the line never formed.
+ *
+ * So miners are exempt from separation against anything that is not a miner:
+ * they are not part of the battle line, and they must be able to walk out to
+ * the seam and back through their own front. Two miners still separate when
+ * they are NOT head-on, which is what stops a crowd from stacking on one pixel
+ * at the seam. Every pair of combat units keeps full separation, so the melee
+ * line and the archer screen are untouched.
+ */
+function skipSeparation(a: Unit, b: Unit, travel: Map<number, number>): boolean {
+  const aMiner = a.typeId === 'miner';
+  const bMiner = b.typeId === 'miner';
+  if (!aMiner && !bMiner) return false;
+
+  if (aMiner && bMiner) {
+    const da = travel.get(a.id) ?? 0;
+    const db = travel.get(b.id) ?? 0;
+    return da !== 0 && db !== 0 && da !== db;
+  }
+
+  // Miner against a combat unit: never block, in either direction.
+  return true;
 }
 
 /**
@@ -82,10 +145,11 @@ function separateAllies(allies: Unit[]): void {
  * earlier index, no step can undo a previous one — a single pass is therefore
  * sufficient, and the result has no overlap by construction.
  */
-function resolveResidualOverlap(allies: Unit[]): void {
+function resolveResidualOverlap(allies: Unit[], travel: Map<number, number>): void {
   for (let i = 1; i < allies.length; i++) {
     const left = allies[i - 1];
     const right = allies[i];
+    if (skipSeparation(left, right, travel)) continue;
     const minGap = UNITS[left.typeId].bodyRadius + UNITS[right.typeId].bodyRadius;
     const gap = right.x - left.x;
     if (gap < minGap) {
@@ -94,7 +158,8 @@ function resolveResidualOverlap(allies: Unit[]): void {
   }
 }
 
-function pushPair(left: Unit, right: Unit): void {
+function pushPair(left: Unit, right: Unit, travel: Map<number, number>): void {
+  if (skipSeparation(left, right, travel)) return;
   const minGap = UNITS[left.typeId].bodyRadius + UNITS[right.typeId].bodyRadius;
   const gap = right.x - left.x;
   const overlap = minGap - gap;

@@ -58,14 +58,35 @@ describe('M3 acceptance 1: the economy closes', () => {
   });
 
   it('never enters a gather that cannot produce gold', () => {
-    // Review Focus #5, at the unit level: a miner must not sit in `gather` on an
+    // Review Focus #5, at the unit level: a miner must not SIT in `gather` on an
     // empty seam, because that is a "working" animation with no output.
+    //
+    // Sampling the state once at the end cannot express that. A miner keeps
+    // re-approaching an empty seam (aiSystem re-targets it), so catching one
+    // mid-gather is normal. What the rule forbids is a gather that never ends,
+    // so measure the LONGEST unbroken gather instead.
     const world = createWorld({ ...ECONOMY_MATCH, startMiners: { player: 2, enemy: 0 } }, 1);
     world.mines.player.goldLeft = 0;
-    for (let i = 0; i < 600; i++) step(world, []);
-    for (const unit of world.units) {
-      if (unit.typeId !== 'miner') continue;
-      expect(unit.state).not.toBe('gather');
+
+    const longest: Record<number, number> = {};
+    const current: Record<number, number> = {};
+    for (let i = 0; i < 600; i++) {
+      step(world, []);
+      for (const unit of world.units) {
+        if (unit.typeId !== 'miner') continue;
+        if (unit.state === 'gather') {
+          current[unit.id] = (current[unit.id] ?? 0) + 1;
+          longest[unit.id] = Math.max(longest[unit.id] ?? 0, current[unit.id]);
+        } else {
+          current[unit.id] = 0;
+        }
+      }
+    }
+
+    expect(Object.keys(longest).length, 'expected at least one miner to try').toBeGreaterThan(0);
+    for (const id of Object.keys(longest)) {
+      // A gather is 3s = 90 ticks. Well past that means it never gave up.
+      expect(longest[Number(id)], `miner #${id} never left gather`).toBeLessThan(200);
     }
     expect(world.gold.player).toBe(200);
   });

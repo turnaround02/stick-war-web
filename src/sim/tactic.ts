@@ -21,17 +21,17 @@ function combatUnits(world: World, side: Side) {
   );
 }
 
-function minersOf(world: World, side: Side) {
-  return world.units.filter(
-    (u) => u.side === side && u.typeId === 'miner' && u.state !== 'dead' && u.hp > 0,
-  );
-}
-
 /**
  * How many of a type this side has ALIVE plus IN FLIGHT. The build order cycles
  * by buying whichever type it has the fewest of, which reaches the profile's
  * ratio in steady state without storing a cursor on the world (a cursor would
  * need hashing, and would drift when units die).
+ *
+ * Counting the queue is NOT optional: `minerTarget` is checked against this, and
+ * a miner takes 5 seconds to train. Counting only the field made the AI queue
+ * another miner on every decision while the first four were still in training —
+ * it spent its entire opening bankroll on seven miners and never built a single
+ * soldier, so it lost every level without ever fighting.
  */
 function ownedCount(world: World, side: Side, typeId: UnitTypeId): number {
   let n = 0;
@@ -92,7 +92,7 @@ export function decideCommands(world: World, side: Side, profile: AiProfile): Co
   //    opening a real ramp instead of a rush. This gates only the ARMY PURCHASE
   //    below — posture must still be issued, or an army that already exists
   //    would stand on `hold` for the whole ramp while the enemy walks in.
-  const rampingEconomy = minersOf(world, side).length < profile.minerTarget;
+  const rampingEconomy = ownedCount(world, side, 'miner') < profile.minerTarget;
   if (rampingEconomy) {
     if (canQueue(world, side, 'miner').ok) {
       commands.push({ kind: 'train', side, typeId: 'miner' });

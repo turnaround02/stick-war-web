@@ -42,12 +42,24 @@ export const ENEMY_STANDARD: AiProfile = {
 
 /**
  * The reference player — an AI that plays the player's side well enough to beat
- * level 2. Used by tests to assert a level is WINNABLE without a human, which
- * turns "can win level 2" from a subjective claim into a deterministic one.
+ * level 1 and 2. Used by tests to assert a level is WINNABLE without a human,
+ * which turns "can win level 2" from a subjective claim into a deterministic one.
+ *
+ * `minerTarget` is a MEASURED value, not a guess. Swept over 12 seeds against
+ * level 1 (spec §9.1's "greediness" knob, and Q7's rule to sweep before fixing):
+ *
+ *   target  4 ->  0/12 wins      target  5..8 -> 12/12 wins
+ *   target 10 ->  0/12 wins
+ *
+ * The plateau is wide and the failure on either side is total, which makes the
+ * mechanism easy to state: below it the player cannot out-produce the wave
+ * schedule, and above it the gold goes to miners that never become an army. 6 is
+ * the centre of the plateau, so the smallest reasonable change to either the
+ * unit table or the level data keeps it inside.
  */
 export const PLAYER_REFERENCE: AiProfile = {
   decisionIntervalTicks: 30,
-  minerTarget: 4,
+  minerTarget: 6,
   buildOrder: ['swordsman', 'archer', 'swordsman', 'spearman'],
   advanceRatio: 0.9,
   retreatRatio: 0.35,
