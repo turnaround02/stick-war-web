@@ -111,7 +111,13 @@ export interface World {
   stats: Record<Side, SideStats>;
   /** Index of the next wave to spawn (scripted levels). */
   waveIndex: number;
-  /** Tick at which the next wave should spawn. */
+  /**
+   * Vestigial: written once by createWorld and never read. `advanceWaves` reads
+   * `atTick` straight off the wave table instead, so this is a second source of
+   * truth for wave timing that nothing keeps in sync. It is NOT hashed (it has
+   * no effect), and it should be deleted rather than trusted. Kept for now only
+   * because removing it touches types outside this milestone.
+   */
   nextWaveTick: number;
   /**
    * Scripted wave table, copied off MatchConfig so cleanup can tell whether more

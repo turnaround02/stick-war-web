@@ -10,7 +10,10 @@
 import type { UnitTypeId } from '../data/units';
 
 export interface AiProfile {
-  /** Ticks between tactical decisions. 30 = once a second. */
+  /**
+   * Ticks between tactical decisions. 30 = once a second, so 45 is every 1.5s
+   * and 24 is every 0.8s. Lower is a faster, more responsive commander.
+   */
   decisionIntervalTicks: number;
   /** How many miners to keep alive before spending on combat units. */
   minerTarget: number;
@@ -29,8 +32,9 @@ export interface AiProfile {
 /**
  * The enemy's standard profile.
  *
- * Deliberately slower than the reference player: spec §8.4 wants level 2 to be
- * winnable, and the difficulty knob is decision frequency.
+ * Deliberately slower than the reference player. Spec §9.1 makes decision
+ * frequency the difficulty knob, so this is where the enemy's handicap lives —
+ * it is what `RENDER_DEMO_MATCH` and level 2's economy enemy run on.
  */
 export const ENEMY_STANDARD: AiProfile = {
   decisionIntervalTicks: 45,

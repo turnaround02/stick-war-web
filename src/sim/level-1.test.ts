@@ -57,8 +57,15 @@ describe('LEVEL_1 — wave table', () => {
     expect(w).toHaveLength(7);
   });
 
-  it('has eight units in the final wave', () => {
-    expect(LEVEL_1.waves[3].units).toHaveLength(8);
+  it('has eight units in the final wave, in the spec §8.4 mix', () => {
+    // Composition, not just length: a length-only assertion would pass for a
+    // wave of eight miners, which is not what "8 单位混合编成" means.
+    const w = LEVEL_1.waves[3].units;
+    expect(w).toHaveLength(8);
+    expect(w.filter((u) => u === 'swordsman')).toHaveLength(4);
+    expect(w.filter((u) => u === 'archer')).toHaveLength(2);
+    expect(w.filter((u) => u === 'spearman')).toHaveLength(2);
+    expect(w.filter((u) => u === 'miner')).toHaveLength(0);
   });
 
   it('escalates: no wave is smaller than the one before', () => {

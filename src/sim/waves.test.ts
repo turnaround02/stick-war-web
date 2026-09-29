@@ -73,8 +73,11 @@ describe('advanceWaves — scheduling', () => {
 
   it('does nothing when there are no waves at all', () => {
     const world = createWorld(level1([]), 1);
-    expect(() => advanceWaves(world)).not.toThrow();
+    advanceWaves(world);
     expect(world.waveIndex).toBe(0);
+    expect(enemies(world)).toHaveLength(0);
+    // Also drive the pipeline: an empty table must not make the tick throw.
+    for (let i = 0; i < 10; i++) step(world, []);
     expect(enemies(world)).toHaveLength(0);
   });
 });

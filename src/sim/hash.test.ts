@@ -206,4 +206,14 @@ describe('hashWorld — M4 wave state', () => {
     b.nextWaveTick = 999;
     expect(hashWorld(a)).toBe(hashWorld(b));
   });
+
+  it('changes when endless changes', () => {
+    // M4a made this load-bearing: cleanupSystem reads it to decide whether an
+    // empty enemy field can be a victory. Two worlds differing only in it can
+    // reach different outcomes, so it must be in the digest.
+    const a = createWorld({ ...scripted, waves: [] }, 1);
+    const b = createWorld({ ...scripted, waves: [] }, 1);
+    b.endless = true;
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
 });

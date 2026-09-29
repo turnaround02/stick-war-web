@@ -39,6 +39,11 @@ export function hashWorld(world: World): string {
   parts.push(`rng=${world.rngState}`);
   parts.push(`outcome=${world.outcome}`);
 
+  // Match-level flags that decide gameplay. `endless` is load-bearing since M4a:
+  // cleanupSystem reads it to decide whether an empty enemy field can ever be a
+  // victory, so two worlds differing only in it can reach different outcomes.
+  parts.push(`endless=${world.endless}`);
+
   parts.push(`gold.p=${world.gold.player}`);
   parts.push(`gold.e=${world.gold.enemy}`);
   parts.push(`pop.p=${world.popUsed.player}`);

@@ -133,11 +133,10 @@ describe('decideCommands — economy first', () => {
   });
 
   it('asks for nothing it cannot afford', () => {
+    // A player with no gold must get no orders at all. The meaningful assertion
+    // is the emptiness; a per-command "gold >= 0" check would be vacuous, since
+    // gold is never negative by construction.
     const world = createWorld(economyMatch({ startGold: { player: 0, enemy: 0 } }), 1);
-    // Every train command must be acceptable to the queue.
-    for (const c of trains(decideAt(world, INTERVAL, ENEMY_STANDARD))) {
-      if (c.kind === 'train') expect(world.gold.enemy).toBeGreaterThanOrEqual(0);
-    }
     expect(trains(decideAt(world, INTERVAL, ENEMY_STANDARD))).toEqual([]);
   });
 });

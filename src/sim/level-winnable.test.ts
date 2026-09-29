@@ -34,10 +34,25 @@ describe('level 1 — the reference player wins', () => {
 
 describe('level 1 — a passive player loses', () => {
   it('loses on every seed', () => {
+    // Spec §11 requires the level to be LOSABLE, not just winnable, and a
+    // player who issues no orders at all is the clearest way to show that the
+    // waves are a real threat rather than scenery. The assertion is weak by
+    // construction (a do-nothing player can hardly win) — it is here to pin
+    // that the WAVES are what end the match, which the reference-player win
+    // cannot show on its own.
     for (const seed of SEEDS) {
       const r = runMatch(LEVEL_1, seed, 'none');
       expect(r.outcome, `seed ${seed}: ${JSON.stringify(r)}`).toBe('playerLose');
+      expect(r.survivors.player, `seed ${seed}`).toBe(0);
     }
+  });
+
+  it('loses to the waves, not to a timeout', () => {
+    // A draw (running out of ticks) would also be "not a win", so assert the
+    // loss is a real wipe inside the tick budget.
+    const r = runMatch(LEVEL_1, 1, 'none');
+    expect(r.ticks).toBeLessThan(6000);
+    expect(r.survivors.player).toBe(0);
   });
 });
 
