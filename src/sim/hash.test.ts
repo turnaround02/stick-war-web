@@ -235,3 +235,27 @@ describe('hashWorld — M4b match flags', () => {
     expect(hashWorld(a)).not.toBe(hashWorld(b));
   });
 });
+
+describe('hashWorld — enemy profile id', () => {
+  const cfg: MatchConfig = {
+    ...DEFAULT_MATCH,
+    levelId: 'hash-profile',
+    startMiners: { player: 0, enemy: 1 },
+    initialUnits: { player: [], enemy: [] },
+    waves: [],
+  };
+
+  it('distinguishes the profiles a level can select', () => {
+    // The id decides what the enemy builds, so two worlds with the same units
+    // can still diverge.
+    const a = createWorld({ ...cfg, enemyProfile: 'standard' }, 1);
+    const b = createWorld({ ...cfg, enemyProfile: 'level-2' }, 1);
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+
+  it('distinguishes none from a real profile', () => {
+    const a = createWorld({ ...cfg, enemyProfile: 'none' }, 1);
+    const b = createWorld({ ...cfg, enemyProfile: 'standard' }, 1);
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+});

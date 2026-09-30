@@ -13,7 +13,7 @@
  */
 
 import { decideCommands } from '../tactic';
-import { ENEMY_STANDARD } from '../ai-profile';
+import { profileFor } from '../ai-profile';
 import { queueUnit } from '../training';
 import type { Command, Side, Stance, TickContext, World } from '../types';
 
@@ -24,12 +24,14 @@ export function commandsSystem(ctx: TickContext): void {
   // so an AI order takes effect on the tick it was decided. This is the spec's
   // own split (§9.1): `commands` is the tactical layer, `ai` is the unit layer.
   //
-  // `aiProfile: 'none'` skips it entirely. Two callers need that: a scripted
-  // level (no enemy economy, so there is nothing to spend) and the balance
-  // harness (which measures pure unit matchups and must not have an AI buying
-  // units or re-issuing stance orders mid-fight).
-  if (world.aiProfile === 'standard') {
-    for (const command of decideCommands(world, 'enemy', ENEMY_STANDARD)) {
+  // The profile comes from a registry keyed by `world.aiProfile`, so a level
+  // selects its own enemy rather than every level sharing one hardcoded set.
+  // `none` skips the layer entirely — needed by a scripted level (no enemy
+  // economy, so nothing to spend) and by the balance harness (which measures
+  // pure unit matchups and must not have an AI buying units mid-fight).
+  const enemyProfile = profileFor(world.aiProfile);
+  if (enemyProfile !== null) {
+    for (const command of decideCommands(world, 'enemy', enemyProfile)) {
       consume(world, command);
     }
   }

@@ -114,6 +114,17 @@ describe('commandsSystem — AI profile gate', () => {
     expect(world.trainingQueue.player).toHaveLength(1);
     expect(world.trainingQueue.enemy).toHaveLength(0);
   });
+
+  it('runs whichever profile the world names, not a hardcoded one', () => {
+    // Before the registry the enemy profile was hardcoded, so a level could not
+    // have its own settings and a true mirror match was untestable.
+    const world = makeWorld([]);
+    world.aiProfile = 'level-2';
+    world.tick = 0;
+    world.gold.enemy = 500;
+    commandsSystem(ctx(world, []));
+    expect(world.trainingQueue.enemy.length).toBeGreaterThan(0);
+  });
 });
 
 describe('commandsSystem — setStance', () => {

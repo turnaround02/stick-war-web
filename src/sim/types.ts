@@ -10,9 +10,9 @@
  */
 
 import type { ArmorType, UnitTypeId } from '../data/units';
-import type { MatchConfig, Side, Stance, WaveScript } from '../data/types';
+import type { AiProfileId, MatchConfig, Side, Stance, WaveScript } from '../data/types';
 
-export type { ArmorType, MatchConfig, Side, Stance, UnitTypeId, WaveScript };
+export type { AiProfileId, ArmorType, MatchConfig, Side, Stance, UnitTypeId, WaveScript };
 
 /** Reserved: `stunned` has no producer in v1 but is the mount point for future control effects. */
 export type UnitState = 'idle' | 'move' | 'gather' | 'attack' | 'stunned' | 'dead';
@@ -131,12 +131,11 @@ export interface World {
    */
   waves: WaveScript[];
   /**
-   * Which tactical profile the enemy runs. Derived from MatchConfig.enemyAi.
-   * `none` means no tactical layer at all — the right setting for a scripted
-   * level (no enemy economy) and for the balance harness, which measures pure
-   * unit matchups and must not have an AI spend gold or issue stance orders.
+   * Which tactical profile the enemy runs. Resolved from MatchConfig at
+   * construction: an explicit `enemyProfile` wins, otherwise it follows
+   * `enemyAi`. `none` means no tactical layer at all.
    */
-  aiProfile: 'none' | 'standard';
+  aiProfile: AiProfileId;
   /** How this match is won. Copied off MatchConfig; see its doc comment. */
   winCondition: 'annihilation' | 'base';
   outcome: Outcome;

@@ -28,6 +28,20 @@ export interface WaveScript {
   units: UnitTypeId[];
 }
 
+/**
+ * Which tactical profile a side runs (spec §9.1).
+ *
+ * Declared here rather than in `sim/ai-profile.ts` because `MatchConfig` names
+ * it, and `data/` must not import from `sim/` — the dependency arrow only ever
+ * points one way. `sim/ai-profile.ts` imports this and attaches the actual
+ * profiles.
+ *
+ * `none` means the tactical layer is SKIPPED entirely: right for a scripted
+ * level (no enemy economy to spend) and for the balance harness (which measures
+ * pure unit matchups).
+ */
+export type AiProfileId = 'none' | 'standard' | 'level-2';
+
 /** Everything needed to build a World. Consumed once by createWorld. */
 export interface MatchConfig {
   levelId: string;
@@ -39,6 +53,12 @@ export interface MatchConfig {
   popCap: Record<Side, number>;
   /** `scripted` = waves only, no economy. `economy` = full two-layer AI (spec §8.4). */
   enemyAi: 'scripted' | 'economy';
+  /**
+   * Which tactical profile the enemy runs. Defaults from `enemyAi` when absent
+   * (`economy` -> `standard`, `scripted` -> `none`), so existing configs keep
+   * working; a level names it explicitly when it wants its own.
+   */
+  enemyProfile?: AiProfileId;
   /** Scripted wave table. Empty when enemyAi is `economy`. */
   waves: WaveScript[];
   endless: boolean;

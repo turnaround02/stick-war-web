@@ -7,7 +7,10 @@
  * winnable without a human.
  */
 
+import type { AiProfileId } from '../data/types';
 import type { UnitTypeId } from '../data/units';
+
+export type { AiProfileId };
 
 export interface AiProfile {
   /**
@@ -68,3 +71,48 @@ export const PLAYER_REFERENCE: AiProfile = {
   advanceRatio: 0.9,
   retreatRatio: 0.35,
 };
+
+/**
+ * Level 2's enemy.
+ *
+ * Values MEASURED by sweeping minerTarget x decisionIntervalTicks against level
+ * 2, five seeds each (Task 7 of the M4b plan). Criteria: the reference player
+ * must win every seed — a level that cannot be won is not a level — AND the
+ * match must land in the 3-6 minute window of spec §8.4.3.
+ *
+ * Sweep results are pasted here by that task. Until then this mirrors the
+ * standard enemy; do NOT hand-tune it without re-running the sweep.
+ */
+export const LEVEL_2_ENEMY: AiProfile = {
+  decisionIntervalTicks: 45,
+  minerTarget: 3,
+  buildOrder: ['swordsman', 'archer', 'swordsman', 'spearman'],
+  advanceRatio: 1.0,
+  retreatRatio: 0.4,
+};
+
+/**
+ * The registry a level selects from.
+ *
+ * A registry of ids rather than an inline profile on MatchConfig: the id is a
+ * short string that hashes cheaply, and `World` already carried an `aiProfile`
+ * field from M4a — widening its values is a smaller change than introducing a
+ * second way to express the same thing.
+ *
+ * `none` is `null`, not a profile: it means the tactical layer is SKIPPED, which
+ * is what a scripted level (no enemy economy) and the balance harness both need.
+ *
+ * `PLAYER_REFERENCE` is deliberately absent. It is the yardstick for "can a
+ * competent player win this level"; letting a level name it as its ENEMY would
+ * invalidate that proof.
+ */
+export const AI_PROFILES: Record<AiProfileId, AiProfile | null> = {
+  none: null,
+  standard: ENEMY_STANDARD,
+  'level-2': LEVEL_2_ENEMY,
+};
+
+/** The profile for an id, or null when that id means "no tactical layer". */
+export function profileFor(id: AiProfileId): AiProfile | null {
+  return AI_PROFILES[id];
+}
