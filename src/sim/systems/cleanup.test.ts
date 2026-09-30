@@ -175,7 +175,7 @@ describe('cleanupSystem — outcome', () => {
       side: 'player',
       x: 10,
       prevX: 10,
-      targetId: 99,
+      target: { kind: 'unit', id: 99 },
       damage: 1,
       ticksToImpact: 0,
     });

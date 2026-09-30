@@ -76,7 +76,7 @@ describe('hashWorld', () => {
       side: 'player',
       x: 10,
       prevX: 10,
-      targetId: 0,
+      target: { kind: 'unit', id: 0 },
       damage: 1,
       ticksToImpact: 3,
     });

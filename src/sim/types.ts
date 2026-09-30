@@ -79,7 +79,13 @@ export interface Projectile {
   x: number;
   /** X at the start of this tick. Used ONLY by the renderer for interpolation. */
   prevX: number;
-  targetId: number;
+  /**
+   * What this shot is aimed at. A full target reference, not a unit id: a base
+   * is a legal target and a numeric id cannot express it. That inability was
+   * the root of a defect where ranged units dealt zero damage to bases while
+   * appearing to attack them.
+   */
+  target: TargetRef;
   damage: number;
   /** Ticks until the projectile lands and resolves damage. */
   ticksToImpact: number;

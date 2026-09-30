@@ -45,10 +45,9 @@ function advanceProjectiles(world: World): void {
   const surviving: typeof world.projectiles = [];
 
   for (const p of world.projectiles) {
-    const ref: TargetRef = { kind: 'unit', id: p.targetId };
-    if (!isTargetAlive(world, ref)) continue;
+    if (!isTargetAlive(world, p.target)) continue;
 
-    const targetPos = targetX(world, ref);
+    const targetPos = targetX(world, p.target);
     if (targetPos === null) continue;
 
     p.ticksToImpact -= 1;
@@ -63,7 +62,7 @@ function advanceProjectiles(world: World): void {
     }
 
     p.x = targetPos;
-    applyDamage(world, p.side, ref, p.damage);
+    applyDamage(world, p.side, p.target, p.damage);
   }
 
   world.projectiles = surviving;
@@ -112,7 +111,8 @@ function releaseStrike(world: World, unit: Unit): void {
 
 function spawnProjectile(world: World, unit: Unit, distance: number, damage: number): void {
   const target = unit.target;
-  if (target === null || target.kind !== 'unit') return;
+  // A mine is a navigation destination, never a damage target.
+  if (target === null || target.kind === 'mine') return;
 
   const speed = UNIT_TICKS[unit.typeId].projectilePerTick;
   // Never zero: a same-position shot must still take a tick, or the projectile
@@ -124,7 +124,7 @@ function spawnProjectile(world: World, unit: Unit, distance: number, damage: num
     side: unit.side,
     x: unit.x,
     prevX: unit.x,
-    targetId: target.id,
+    target,
     damage,
     ticksToImpact,
   });

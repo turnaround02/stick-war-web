@@ -89,9 +89,10 @@ export function hashWorld(world: World): string {
   }
 
   for (const p of world.projectiles) {
-    parts.push(
-      `p${p.id}:${p.side}:${quantise(p.x)}:${p.targetId}:${p.damage}:${p.ticksToImpact}`,
-    );
+    const t = p.target;
+    const tag =
+      t === null ? '-' : t.kind === 'unit' ? `u${t.id}` : `${t.kind[0]}${t.side}`;
+    parts.push(`p${p.id}:${p.side}:${quantise(p.x)}:${tag}:${p.damage}:${p.ticksToImpact}`);
   }
 
   return fnv1a(parts.join('|'), FNV_OFFSET).toString(16).padStart(8, '0');
