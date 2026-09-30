@@ -131,6 +131,8 @@ export interface World {
    * unit matchups and must not have an AI spend gold or issue stance orders.
    */
   aiProfile: 'none' | 'standard';
+  /** How this match is won. Copied off MatchConfig; see its doc comment. */
+  winCondition: 'annihilation' | 'base';
   outcome: Outcome;
   levelId: string;
 

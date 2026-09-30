@@ -43,13 +43,20 @@ function removeStaleProjectiles(world: World): void {
 }
 
 /**
- * Two win conditions (spec §6.6):
+ * Win conditions (spec §6.6, §8.4.1):
  *   1. a base falls
  *   2. a side has no units left — this is what lets the base-less harness
  *      matchups reach a verdict instead of running to maxTicks
  *
- * Condition 2 is qualified for the enemy: it only counts as annihilation when
- * no wave is still due (see enemyHasUnitsPending).
+ * Condition 2 applies to the ENEMY only under `winCondition: 'annihilation'`.
+ * Under `'base'` an empty enemy field is not terminal at all: the enemy rebuilds
+ * in an economy level, so only its base falling ends the match. That is what
+ * makes the base an objective rather than scenery — measured on the old rule,
+ * thirty matches ended with both bases untouched at 3000/3000.
+ *
+ * The PLAYER's defeat does not depend on `winCondition`. There is no comeback
+ * mechanic, so a wiped player is beaten whatever the mode; deferring it under
+ * base rules would display "you can still win" with no way to resolve it.
  *
  * When both conditions fire on the same tick the player loses: an ambiguous
  * mutual wipe is resolved against the player so the outcome is never
@@ -65,6 +72,21 @@ function resolveOutcome(world: World): void {
   const enemyUnits = world.units.filter((u) => u.side === 'enemy').length;
 
   const playerWiped = playerUnits === 0;
+
+  if (playerBaseDown || playerWiped) {
+    world.outcome = 'playerLose';
+    return;
+  }
+
+  if (enemyBaseDown) {
+    world.outcome = 'playerWin';
+    return;
+  }
+
+  // Base rules: the enemy base must fall. An empty field just means the player
+  // may now besiege it unopposed.
+  if (world.winCondition === 'base') return;
+
   // "No units left" is only annihilation if nothing more is on its way. A
   // scripted level's enemy force lives ENTIRELY in its wave table, so at t=0 it
   // legitimately has zero units on the field — treating that as annihilation
@@ -72,13 +94,7 @@ function resolveOutcome(world: World): void {
   // first wave. Endless mode is the same shape but never exhausts its waves,
   // which is exactly right: endless can only be lost, never won by clearing.
   const enemyWiped = enemyUnits === 0 && !enemyHasUnitsPending(world);
-
-  if (playerBaseDown || playerWiped) {
-    world.outcome = 'playerLose';
-    return;
-  }
-
-  if (enemyBaseDown || enemyWiped) {
+  if (enemyWiped) {
     world.outcome = 'playerWin';
   }
 }

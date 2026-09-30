@@ -217,3 +217,21 @@ describe('hashWorld — M4 wave state', () => {
     expect(hashWorld(a)).not.toBe(hashWorld(b));
   });
 });
+
+describe('hashWorld — M4b match flags', () => {
+  const base: MatchConfig = {
+    ...DEFAULT_MATCH,
+    levelId: 'hash-m4b',
+    startMiners: { player: 1, enemy: 0 },
+    initialUnits: { player: [], enemy: [] },
+    waves: [],
+  };
+
+  it('changes when winCondition changes', () => {
+    // Same argument as `endless`: it decides the outcome, so two worlds that
+    // differ only in it can diverge.
+    const a = createWorld({ ...base, winCondition: 'annihilation' }, 1);
+    const b = createWorld({ ...base, winCondition: 'base' }, 1);
+    expect(hashWorld(a)).not.toBe(hashWorld(b));
+  });
+});

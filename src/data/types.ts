@@ -46,6 +46,19 @@ export interface MatchConfig {
   difficultyMult: number;
 
   /**
+   * How the match is won. `annihilation` (default) is the historical rule:
+   * either side's base falling OR either side's unit count reaching zero ends
+   * the match. `base` requires the enemy BASE to fall — an empty enemy field is
+   * not a terminal state, which matters in an economy level where the enemy
+   * rebuilds.
+   *
+   * Deliberately NOT derived from `enemyAi`: "does the enemy have an economy"
+   * and "what counts as winning" are different questions that merely happen to
+   * coincide in this game's two levels.
+   */
+  winCondition?: 'annihilation' | 'base';
+
+  /**
    * Explicit starting roster, listed as type ids. Takes precedence over
    * startMiners when present. Used by the balance harness to build arbitrary
    * matchups without inventing a level file per scenario.

@@ -99,6 +99,7 @@ export function createWorld(config: MatchConfig, seed: number): World {
     // Only an economy enemy has a bank to spend, so only it gets a tactical
     // layer. A scripted level's force is entirely in its wave table.
     aiProfile: config.enemyAi === 'economy' ? 'standard' : 'none',
+    winCondition: config.winCondition ?? 'annihilation',
     outcome: 'ongoing',
     levelId: config.levelId,
     worldWidth: config.worldWidth,

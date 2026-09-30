@@ -43,6 +43,8 @@ export function hashWorld(world: World): string {
   // cleanupSystem reads it to decide whether an empty enemy field can ever be a
   // victory, so two worlds differing only in it can reach different outcomes.
   parts.push(`endless=${world.endless}`);
+  // Decides the outcome under an empty enemy field, so it is state, not scenery.
+  parts.push(`win=${world.winCondition}`);
 
   parts.push(`gold.p=${world.gold.player}`);
   parts.push(`gold.e=${world.gold.enemy}`);
