@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { runMatch } from './harness';
-import { LEVEL_1 } from '../data/levels';
+import { LEVEL_1, LEVEL_2 } from '../data/levels';
 
 /**
  * "Can win level N" as a deterministic assertion.
@@ -79,5 +79,48 @@ describe('level 1 — the outcome is not an artefact of a single shape', () => {
     const r = runMatch(LEVEL_1, 1, 'none');
     expect(r.wavesSpawned).toBeGreaterThanOrEqual(1);
     expect(r.outcome).toBe('playerLose');
+  });
+});
+
+describe('level 2 — the reference player wins', () => {
+  for (const seed of SEEDS) {
+    it(`wins on seed ${seed}`, () => {
+      const r = runMatch(LEVEL_2, seed, 'reference');
+      expect(r.outcome, `seed ${seed}: ${JSON.stringify(r)}`).toBe('playerWin');
+    });
+  }
+
+  it('wins by DESTROYING the base, not by clearing the field', () => {
+    // The distinction the whole milestone exists for: under `winCondition:
+    // 'base'` an empty enemy field is not a win, so reaching a verdict proves
+    // the base actually fell.
+    const r = runMatch(LEVEL_2, 1, 'reference');
+    expect(r.baseHp.enemy).toBe(0);
+  });
+
+  it('lands inside the 3-6 minute target', () => {
+    const r = runMatch(LEVEL_2, 1, 'reference');
+    const seconds = r.ticks / 30;
+    expect(seconds, `took ${seconds.toFixed(0)}s`).toBeGreaterThanOrEqual(180);
+    expect(seconds, `took ${seconds.toFixed(0)}s`).toBeLessThanOrEqual(360);
+  });
+
+  it('takes the duration the enemy profile was swept for', () => {
+    // Pins the measured value, not just the window: the window would still pass
+    // if a future change silently retuned the enemy from 276s to 185s, and the
+    // profile's comment would then be lying about what it does. This assertion
+    // is what caught two bad sweeps during M4b.
+    const r = runMatch(LEVEL_2, 1, 'reference');
+    expect(Math.round(r.ticks / 30)).toBe(276);
+  });
+
+  it('can also be LOST', () => {
+    // Spec §11: a level that cannot be lost is not a level.
+    const r = runMatch(LEVEL_2, 1, 'none');
+    expect(r.outcome).toBe('playerLose');
+  });
+
+  it('is deterministic for a given seed', () => {
+    expect(runMatch(LEVEL_2, 7, 'reference')).toEqual(runMatch(LEVEL_2, 7, 'reference'));
   });
 });

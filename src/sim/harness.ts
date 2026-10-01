@@ -93,6 +93,11 @@ export interface MatchResult {
   survivors: Record<Side, number>;
   /** How many scripted waves had spawned by the end. */
   wavesSpawned: number;
+  /**
+   * Final HP of each base. Lets a test tell "destroyed the base" apart from
+   * "cleared the field", which matters once a level is won by the former.
+   */
+  baseHp: Record<Side, number>;
 }
 
 /**
@@ -131,6 +136,7 @@ export function runMatch(
       enemy: world.units.filter((u) => u.side === 'enemy').length,
     },
     wavesSpawned: world.waveIndex,
+    baseHp: { player: world.bases.player.hp, enemy: world.bases.enemy.hp },
   };
 }
 

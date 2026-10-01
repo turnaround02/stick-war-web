@@ -31,4 +31,16 @@ export const ZH_CN: Record<string, string> = {
   'ui.speed': '速度',
   'ui.pause': '暂停',
   'ui.resume': '继续',
+
+  // Result overlay
+  'result.win': '胜利',
+  'result.lose': '失败',
+  'result.time': '用时',
+  'result.replay': '重玩',
+  'result.next': '下一关',
+  'result.restartCampaign': '返回第一关',
+
+  // Level names — keys follow `level.<levelId>.name`.
+  'level.level-1.name': '第一关',
+  'level.level-2.name': '第二关',
 };

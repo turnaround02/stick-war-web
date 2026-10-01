@@ -1,13 +1,15 @@
 import Phaser from 'phaser';
 import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
-import { RENDER_DEMO_MATCH, RENDER_DEMO_SEED } from '../../data/levels';
+import { CAMPAIGN_SEED, LEVELS } from '../../data/levels';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { UnitTypeId } from '../../data/units';
 import { CommandQueue, KeyState, setStance as cmdSetStance, train as cmdTrain } from '../../input/desktop';
+import { t } from '../../i18n';
 import { createWorld } from '../../sim/createWorld';
-import type { Side, Stance, Unit, UnitState, World } from '../../sim/types';
+import type { MatchConfig, Side, Stance, Unit, UnitState, World } from '../../sim/types';
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
 import { createHud, type Hud } from '../hud';
+import { createResultOverlay, type ResultOverlay } from '../result';
 import { Selection, selectedIdsOf } from '../selection';
 import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
@@ -43,8 +45,16 @@ export class BattleScene extends Phaser.Scene {
   private selection = new Selection();
   private selectedMarker!: Phaser.GameObjects.Graphics;
   private hud!: Hud;
+  private result!: ResultOverlay;
   private speed: GameSpeed = 1;
   private paused = false;
+  /** Ticks simulated this match, for the result screen's "time taken". */
+  private elapsedTicks = 0;
+
+  /** Which level is loaded, and with which seed. Set by init(). */
+  private config: MatchConfig = LEVELS[0];
+  private seed = CAMPAIGN_SEED;
+  private levelIndex = 0;
 
   /** Last known appearance per unit, so a ghost can be spawned after removal. */
   private lastTypeId = new Map<number, UnitTypeId>();
@@ -54,17 +64,32 @@ export class BattleScene extends Phaser.Scene {
     super({ key: 'Battle' });
   }
 
+  /**
+   * Receives the level to play. Phaser calls this before `create()`, and again
+   * on every `scene.restart(data)`, which is how "replay" and "next level"
+   * load a different match without a global registry value.
+   *
+   * Absent data falls back to the first level, so `scene.start('Battle')` from
+   * BootScene needs no change.
+   */
+  init(data?: { config?: MatchConfig; seed?: number }): void {
+    this.config = data?.config ?? LEVELS[0];
+    this.seed = data?.seed ?? CAMPAIGN_SEED;
+    this.levelIndex = Math.max(0, LEVELS.indexOf(this.config));
+  }
+
   create(): void {
     // Scene.restart() reuses this instance, so every mutable field must be
     // reset here. Without this, pressing R after pausing starts the new match
     // still paused, and stale selection/keys survive into it.
-    this.world = createWorld(RENDER_DEMO_MATCH, RENDER_DEMO_SEED);
+    this.world = createWorld(this.config, this.seed);
     this.timestep = new FixedTimestep();
     this.commands = new CommandQueue();
     this.keys = new KeyState();
     this.selection = new Selection();
     this.speed = 1;
     this.paused = false;
+    this.elapsedTicks = 0;
     this.stickmen.clear();
     this.lastTypeId.clear();
     this.lastFacing.clear();
@@ -86,6 +111,11 @@ export class BattleScene extends Phaser.Scene {
     this.hud.setSpeed(this.speed);
     this.hud.setPaused(this.paused);
 
+    this.result = createResultOverlay(this, {
+      onReplay: () => this.replay(),
+      onNextLevel: () => this.goToNextLevel(),
+    });
+
     this.syncStickmen();
     this.layout();
     this.setupInput();
@@ -101,11 +131,28 @@ export class BattleScene extends Phaser.Scene {
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', onResize);
       this.hud.destroy();
+      this.result.destroy();
     });
 
-    this.input.keyboard?.on('keydown-R', () => {
-      this.scene.restart();
-    });
+    // R replays the CURRENT level. A bare `restart()` would drop the level and
+    // send the player back to level 1 from level 2.
+    this.input.keyboard?.on('keydown-R', () => this.replay());
+  }
+
+  /** Restarts the current level from the beginning. */
+  private replay(): void {
+    this.scene.restart({ config: this.config, seed: this.seed });
+  }
+
+  /** Loads the next level, wrapping back to the first after the last. */
+  private goToNextLevel(): void {
+    const next = LEVELS[(this.levelIndex + 1) % LEVELS.length];
+    this.scene.restart({ config: next, seed: this.seed });
+  }
+
+  /** The label for the "next" button: another level, or back to the start. */
+  private nextButtonLabel(): string {
+    return this.levelIndex >= LEVELS.length - 1 ? t('result.restartCampaign') : t('result.next');
   }
 
   /** Wires keyboard, pointer and wheel to input state and the command queue. */
@@ -166,9 +213,12 @@ export class BattleScene extends Phaser.Scene {
    * Flips pause and keeps the HUD in step.
    *
    * One method for both the Space key and the button, so the two can never
-   * disagree about whether the game is paused.
+   * disagree about whether the game is paused. A decided match ignores it: the
+   * result overlay IS the paused state, and toggling underneath it would let the
+   * player resume a finished game.
    */
   private togglePause(): void {
+    if (this.world.outcome !== 'ongoing') return;
     this.paused = !this.paused;
     this.hud.setPaused(this.paused);
   }
@@ -246,16 +296,24 @@ export class BattleScene extends Phaser.Scene {
     // Render-only work runs even while paused: a pause must freeze the
     // simulation, not the interface. Skipping this would leave a click made
     // while paused invisible until the player resumed.
-    const ticks = this.paused
-      ? 0
-      : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
+    //
+    // A decided match stops advancing too (spec §6.6). Continuing would make
+    // "the final state" depend on how long the player took to click, and at 4x
+    // would let the winner mop up a corpse army for no reason.
+    const decided = this.world.outcome !== 'ongoing';
+    const ticks =
+      this.paused || decided
+        ? 0
+        : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
+    this.elapsedTicks += ticks;
 
     this.syncStickmen();
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
     this.drawSelectionMarkers();
     this.hud.sync(this.world);
+    this.result.sync(this.world, this.elapsedTicks, this.nextButtonLabel());
 
-    if (ticks > 0 || this.paused) {
+    if (ticks > 0 || this.paused || decided) {
       this.tickLabel.setText(
         `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}`,
       );
@@ -281,6 +339,7 @@ export class BattleScene extends Phaser.Scene {
     this.projectiles.setGroundY(this.groundY);
     this.syncStickmen();
     this.hud.layout(width, height);
+    this.result.layout(width, height);
   }
 
   /** Draws the ground line and the base markers. Camera-agnostic: world coords only. */

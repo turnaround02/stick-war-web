@@ -76,16 +76,37 @@ export const PLAYER_REFERENCE: AiProfile = {
  * Level 2's enemy.
  *
  * Values MEASURED by sweeping minerTarget x decisionIntervalTicks against level
- * 2, five seeds each (Task 7 of the M4b plan). Criteria: the reference player
- * must win every seed — a level that cannot be won is not a level — AND the
- * match must land in the 3-6 minute window of spec §8.4.3.
+ * 2, five seeds each (M4b Task 7). Criteria: the reference player must win every
+ * seed — a level that cannot be won is not a level — AND the match must land in
+ * the 3-6 minute window of spec §8.4.3, as close to its centre as possible.
  *
- * Sweep results are pasted here by that task. Until then this mirrors the
- * standard enemy; do NOT hand-tune it without re-running the sweep.
+ * Sweep (minerTarget / interval -> seconds; all five seeds identical):
+ *   4/30 152 · 4/45 136 · 4/60 143
+ *   5/30 149 · 5/45 154 · 5/60 144
+ *   6/30 174 · 6/45 207 · 6/60 216
+ *   7/30 192 · 7/45 206 · 7/60 189
+ *   8/30 276 · 8/45 334 · 8/60 217   <- chosen: 8/30, nearest the 270s centre
+ *
+ * Two earlier sweeps of this same grid were WRONG, and the reason matters more
+ * than the numbers, because both mistakes produced plausible-looking tables:
+ *
+ *   1. Driving both sides from the test's own loop gave 211s where the truth is
+ *      216s. The loop applied the player's commands before the enemy's, while
+ *      `commandsSystem` consumes the AI's first; that ordering difference alone
+ *      moved results by tens of seconds. A sweep must exercise the mechanism
+ *      the game runs, so this one repoints the registry entry and lets
+ *      `runMatch` drive the enemy normally.
+ *   2. Even then, spreading `PLAYER_REFERENCE` as the base meant the sweep used
+ *      advanceRatio 0.9 / retreatRatio 0.35 while the shipped profile uses
+ *      1.0 / 0.4 — so the table described a profile that does not exist. The
+ *      sweep must vary its knobs on top of the EXACT base it intends to ship.
+ *
+ * Both were caught only because a test pinned the duration and disagreed with
+ * the comment. Do not hand-tune these without re-running the sweep.
  */
 export const LEVEL_2_ENEMY: AiProfile = {
-  decisionIntervalTicks: 45,
-  minerTarget: 3,
+  decisionIntervalTicks: 30,
+  minerTarget: 8,
   buildOrder: ['swordsman', 'archer', 'swordsman', 'spearman'],
   advanceRatio: 1.0,
   retreatRatio: 0.4,

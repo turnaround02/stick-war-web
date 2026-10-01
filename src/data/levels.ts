@@ -35,32 +35,6 @@ export const DEFAULT_MATCH: MatchConfig = {
 };
 
 /**
- * TEMPORARY (M3): a complete playable skirmish — a base, a mine, three
- * starting miners, and enough gold to make a first choice. The enemy advances
- * with M2's stance system; M4 replaces this with level-driven data and a real
- * AI.
- *
- * The enemy's standing force is a small push to fight against, so the player
- * has something to train AGAINST rather than an empty field. Archers are listed
- * first so they spawn nearer the enemy base and end up behind the swordsmen
- * (createWorld places a smaller cursor closer to home).
- */
-export const RENDER_DEMO_MATCH: MatchConfig = {
-  ...DEFAULT_MATCH,
-  levelId: 'render-demo',
-  startGold: { player: 200, enemy: 200 },
-  startMiners: { player: 3, enemy: 3 },
-  initialUnits: {
-    player: [],
-    enemy: ['archer', 'archer', 'swordsman', 'swordsman', 'swordsman'],
-  },
-  initialStance: 'advance',
-};
-
-/** TEMPORARY (M3): fixed seed for the render demo, so screenshots are repeatable. */
-export const RENDER_DEMO_SEED = 20260926;
-
-/**
  * Level 1 (tutorial) — spec §8.4.
  *
  * The enemy has NO economy: its entire force is scripted. That is deliberate,
@@ -103,3 +77,40 @@ export const LEVEL_1: MatchConfig = {
 /** Positions used by createWorld. Kept here so geometry has one source of truth. */
 export const BASE_X = { player: PLAYER_BASE_X, enemy: ENEMY_BASE_X } as const;
 export const MINE_X = { player: PLAYER_MINE_X, enemy: ENEMY_MINE_X } as const;
+
+/**
+ * Level 2 — the symmetric economy level (spec §8.4.3).
+ *
+ * Both sides get the same start, and the enemy runs its own tactical profile.
+ * `winCondition: 'base'` is the important field: the enemy REBUILDS, so an empty
+ * enemy field is not a terminal state and only the base falling ends the match.
+ * That is what makes the base an objective instead of scenery — measured under
+ * the old rule, thirty matches ended with both bases untouched at 3000/3000.
+ *
+ * The enemy base is 1500, matching level 1's: at 3000 the breakthrough is
+ * followed by ~43s of unopposed base-chewing, and halving it cuts that to ~22s.
+ */
+export const LEVEL_2: MatchConfig = {
+  ...DEFAULT_MATCH,
+  levelId: 'level-2',
+  baseHp: { player: BASE_HP, enemy: 1500 },
+  startGold: { player: START_GOLD, enemy: START_GOLD },
+  startMiners: { player: 3, enemy: 3 },
+  initialUnits: { player: [], enemy: [] },
+  enemyAi: 'economy',
+  enemyProfile: 'level-2',
+  winCondition: 'base',
+  waves: [],
+  endless: false,
+};
+
+/**
+ * The campaign, in play order.
+ *
+ * The ARRAY ORDER is the level order. There is deliberately no `order` field on
+ * MatchConfig — two sources of truth for the same fact is one too many.
+ */
+export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2];
+
+/** The seed the campaign starts on. Fixed so a level plays the same each time. */
+export const CAMPAIGN_SEED = 20260926;
