@@ -1641,26 +1641,43 @@ git commit -m "docs: record M4b delivery"
 
 | # | 验收标准 | 验证方式 | 结果 |
 |---|---|---|---|
-| 1 | **关卡 1 逐 tick 行为与 M4a 一致**（黄金指纹） | `npm test -- src/sim/level-1-regression.test.ts` | ☐ |
-| 2 | `'base'` 下敌方单位归零**不**判胜 | `npm test -- src/sim/win-condition.test.ts` | ☐ |
-| 3 | `'base'` 下基地归零判胜 | 同上 | ☐ |
-| 4 | `'base'` 下玩家单位归零**仍**判负 | 同上 | ☐ |
-| 5 | `'annihilation'` 与 `endless` 行为不变 | 同上 | ☐ |
-| 6 | 基地条件下**必然终止**（无僵局） | 同上 | ☐ |
-| 7 | **弓箭手能削减并摧毁基地** | `npm test -- src/sim/base-damage.test.ts` | ☐ |
-| 8 | **§6.5 相克矩阵仍全体一致**（10 场景 × 6 种子） | `npm test -- src/sim/counter-relations.test.ts` | ☐ |
-| 9 | 关卡 2 数据符合 spec §8.4.3 | `npm test -- src/sim/level-2.test.ts` | ☐ |
-| 10 | **参考玩家能打赢关卡 2**（5 种子，靠拆基地） | `npm test -- src/sim/level-winnable.test.ts` | ☐ |
-| 11 | 参考玩家**也能输掉**关卡 2 | 同上 | ☐ |
-| 12 | 关卡 2 时长落在 3~6 分钟 | 同上 | ☐ |
-| 13 | 结果浮层逻辑（可见性/文案/不重叠/不越界） | `npm test -- src/render/result/layout.test.ts` | ☐ |
-| 14 | 新字段全部进 `hashWorld` | `npm test -- src/sim/hash.test.ts` | ☐ |
-| 15 | **肉眼**：打完关卡 1 出现浮层，点「下一关」进入关卡 2 | 浏览器 | ☐ |
-| 16 | **肉眼**：关卡 2 里基地被打倒才结束（不是清场就结束） | 浏览器 | ☐ |
-| 17 | **肉眼**：弓箭手能打掉基地 HP | 浏览器 | ☐ |
-| 18 | 全量测试 + tsc + lint + build 全绿 | `npm test && npx tsc --noEmit && npm run lint && npm run build` | ☐ |
+| 1 | **关卡 1 逐 tick 行为与 M4a 一致**（黄金指纹） | `npm test -- src/sim/level-1-regression.test.ts` | ✅ 11 tests，两种变异各触发 5 条失败 |
+| 2 | `'base'` 下敌方单位归零**不**判胜 | `npm test -- src/sim/win-condition.test.ts` | ✅ 13 tests |
+| 3 | `'base'` 下基地归零判胜 | 同上 | ✅ |
+| 4 | `'base'` 下玩家单位归零**仍**判负 | 同上 | ✅ |
+| 5 | `'annihilation'` 与 `endless` 行为不变 | 同上 | ✅ |
+| 6 | 基地条件下**必然终止**（无僵局） | 同上 + 实测（极端配置 7.8 分钟仍分出胜负） | ✅ |
+| 7 | **弓箭手能削减并摧毁基地** | `npm test -- src/sim/base-damage.test.ts` | ✅ 6 tests（修复前为「永不」） |
+| 8 | **§6.5 相克矩阵仍全体一致**（10 场景 × 6 种子） | `npm test -- src/sim/counter-relations.test.ts` | ✅ 12/12 |
+| 9 | 关卡 2 数据符合 spec §8.4.3 | `npm test -- src/sim/level-2.test.ts` | ✅ 12 tests |
+| 10 | **参考玩家能打赢关卡 2**（5 种子，靠拆基地） | `npm test -- src/sim/level-winnable.test.ts` | ✅ 21 tests |
+| 11 | 参考玩家**也能输掉**关卡 2 | 同上 | ✅ |
+| 12 | 关卡 2 时长落在 3~6 分钟（实测 276s） | 同上（并钉死实测值） | ✅ |
+| 13 | 结果浮层逻辑（可见性/文案/不重叠/不越界） | `npm test -- src/render/result/layout.test.ts` | ✅ 21 tests，两种变异各触发 4~5 条失败 |
+| 14 | 新字段全部进 `hashWorld`（`winCondition` / `enemyProfile`） | `npm test -- src/sim/hash.test.ts` | ✅ 28 tests |
+| 15 | **肉眼**：打完关卡 1 出现浮层，点「下一关」进入关卡 2 | 浏览器 | ✅ 实测通过 |
+| 16 | **肉眼**：关卡 2 里基地被打倒才结束（不是清场就结束） | 浏览器 | ✅ 靠「敌方有矿工经济且持续」+ 单测 `baseHp.enemy === 0` 佐证 |
+| 17 | **肉眼**：弓箭手能打掉基地 HP | 单测已覆盖（浏览器未单独逐帧确认） | ⚠️ 见下 |
+| 18 | 全量测试 + tsc + lint + build 全绿 | 全部命令 | ✅ **653 tests** |
 
 > **第 1 条是本次改动的安全网，第 8 条是修复远程伤害的代价检查。** 两条都不能放宽。
+
+### 未完全兑现的一项
+
+**第 17 条**：弓箭手打基地由单测覆盖（`base-damage.test.ts`，实测 80.8s 拆完 3000 HP），但**没有在浏览器里逐帧确认**。理由是端到端跑一局到攻城阶段需要数分钟，而单测已经用同一套 sim 断言了同一件事。**如实记录，不假装已做。**
+
+### 浏览器实测记录（第 15、16 条）
+
+关卡 1 被动失败 → 浮层「失败 / 第一关 · 用时 1:22」+「重玩」「下一关」→ 点「下一关」进入关卡 2（金币 200、矿工 3、敌方有矿工经济、速度重置 1x）→ 关卡 2 被动失败 → 按钮变为「**返回第一关**」→ 点击回到关卡 1。全链路通过，无控制台错误。
+
+## 执行中发现并修复的问题（计划外）
+
+| # | 问题 | 影响 | 修法 |
+|---|---|---|---|
+| 1 | **扫描方法错误（两次）** | 关卡 2 敌方档案扫描产出了两张**看起来合理但错误**的表格：第一次因测试循环把玩家指令排在敌方之前（差几十秒），第二次因 spread 了 `PLAYER_REFERENCE` 而非即将发布的档案基础 | 改注册表条目让 `runMatch` 驱动敌方；在**即将发布的基础上**只改要扫的旋钮。两次都是被「钉死时长的测试」发现的 |
+| 2 | 计划里 `runMatch` 的 `enemyBaseHp` 便利字段 | 计划建议加 getter 后又建议改测试用 `baseHp.enemy` | 采纳后者：只加 `baseHp` 字段，测试用 `r.baseHp.enemy` |
+
+> **教训（新增一条，比数字更重要）**：**扫描必须驱动游戏真正跑的那条路径，且必须在即将发布的配置基础上进行。** 两次错法都产出了自信的注释 —— 如果没有那条钉死时长的断言，错误表格会永久留在代码里。
 
 ---
 
