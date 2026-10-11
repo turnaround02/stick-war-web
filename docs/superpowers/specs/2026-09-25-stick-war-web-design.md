@@ -1172,6 +1172,8 @@ function runScenario(scenario: Scenario, seed: number, maxTicks: number): Scenar
 | `World.nextWaveTick` | **残留字段**：`createWorld` 写一次，无人读；`advanceWaves` 直接从波次表读 `atTick` | **M5a 删除**（它是一份无人维护的波次时刻副本，留着只会误导） |
 | `sim/rng.ts`（`nextRandom` / `randomInt`） | **从未被消费**：实测所有关卡对种子完全惰性，3 个种子逐字节相同 | **保留但不启用**。M5 的无尽波次用固定构成规则（§8.4.4），不需要随机。将来若启用，生成必须把新 `rngState` 写回 `world` 且结果必须进哈希 |
 
+> **附带发现（M5a 实测）：** `world.rngState` **被哈希**（`hash.ts`）但**从未被消费**，所以**不同种子会产生不同的哈希、却完全相同的对局**。这不影响正确性（哈希的职责是「同样输入 → 同样输出」，而种子确实是输入之一），但它是**确定性守卫的一处噪声**：哈希在为一个对玩法毫无影响的值编码。若将来启用 PRNG，这条自动消失；若不启用，可考虑把 `rngState` 移出哈希 —— **但那时必须同时确认没有别的消费者**。
+
 ### M3 决策记录（2026-09-26）
 
 | Q | 决策 | 结论 |

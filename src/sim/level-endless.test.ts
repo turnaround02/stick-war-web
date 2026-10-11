@@ -4,6 +4,7 @@ import { createWorld } from './createWorld';
 import { step } from './tick';
 import { decideCommands } from './tactic';
 import { PLAYER_REFERENCE } from './ai-profile';
+import { hashWorld } from './hash';
 
 describe('LEVEL_ENDLESS — shape (spec §8.4.4)', () => {
   it('is the last level in the campaign', () => {
@@ -75,5 +76,41 @@ describe('LEVEL_ENDLESS — the match only ever ends in defeat', () => {
       step(world, decideCommands(world, 'player', PLAYER_REFERENCE));
     }
     expect(world.waveIndex).toBe(8);
+  });
+});
+
+describe('endless determinism', () => {
+  it('produces byte-identical worlds for the same seed', () => {
+    const run = () => {
+      const world = createWorld(LEVEL_ENDLESS, 4242);
+      for (let t = 0; t < 4000; t++) {
+        step(world, decideCommands(world, 'player', PLAYER_REFERENCE));
+      }
+      return hashWorld(world);
+    };
+    expect(run()).toBe(run());
+  });
+
+  it('simulates identically regardless of seed, because nothing consumes rngState', () => {
+    // `rngState` is seeded into the world and hashed, but NOTHING in the sim
+    // calls nextRandom - so two seeds produce different hashes yet identical
+    // gameplay. That is worth pinning: if a future change starts consuming the
+    // PRNG, this test SHOULD fail, and the response is to decide whether the new
+    // randomness is wanted (and hash its results) - not to delete the test.
+    const fingerprint = (seed: number) => {
+      const world = createWorld(LEVEL_ENDLESS, seed);
+      for (let t = 0; t < 4000; t++) {
+        step(world, decideCommands(world, 'player', PLAYER_REFERENCE));
+      }
+      return {
+        outcome: world.outcome,
+        waveIndex: world.waveIndex,
+        tick: world.tick,
+        units: world.units
+          .map((u) => `${u.id}:${u.side}:${u.typeId}:${u.x.toFixed(4)}:${u.hp}`)
+          .join('|'),
+      };
+    };
+    expect(fingerprint(1)).toEqual(fingerprint(999));
   });
 });
