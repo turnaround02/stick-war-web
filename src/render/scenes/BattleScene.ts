@@ -56,6 +56,17 @@ export class BattleScene extends Phaser.Scene {
   private seed = CAMPAIGN_SEED;
   private levelIndex = 0;
 
+  /**
+   * Named so it can be detached on shutdown.
+   *
+   * This listener lives on the GAME-level emitter, which Phaser does not clear
+   * when a scene shuts down — `Systems.shutdown` only clears the scene's own
+   * emitter. Phaser's own input plugins do call `removeAllListeners()` on
+   * shutdown, so theirs are fine; an anonymous arrow here would leak one
+   * listener per restart and keep a dead scene's KeyState reachable.
+   */
+  private readonly onWindowBlur = (): void => this.keys.clear();
+
   /** Last known appearance per unit, so a ghost can be spawned after removal. */
   private lastTypeId = new Map<number, UnitTypeId>();
   private lastFacing = new Map<number, 1 | -1>();
@@ -130,6 +141,7 @@ export class BattleScene extends Phaser.Scene {
     // Scene restart would otherwise stack a second listener and leak this one.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off('resize', onResize);
+      this.game.events.off(Phaser.Core.Events.BLUR, this.onWindowBlur);
       this.hud.destroy();
       this.result.destroy();
     });
@@ -177,7 +189,8 @@ export class BattleScene extends Phaser.Scene {
 
     // A key released while the window is unfocused never fires keyup, so the
     // camera would scroll forever. Clearing on blur is the cheap fix.
-    this.game.events.on(Phaser.Core.Events.BLUR, () => this.keys.clear());
+    // Registered via a named handler so SHUTDOWN can detach it; see the field.
+    this.game.events.on(Phaser.Core.Events.BLUR, this.onWindowBlur);
 
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
