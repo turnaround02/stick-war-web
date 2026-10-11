@@ -31,7 +31,6 @@ export const DEFAULT_MATCH: MatchConfig = {
   enemyAi: 'economy',
   waves: [],
   endless: false,
-  difficultyMult: 1,
 };
 
 /**

@@ -28,14 +28,12 @@ function makeWorld(units: World['units'], worldWidth = 3000): World {
     trainingQueue: { player: [], enemy: [] },
     stats: { player: { damageDealt: 0 }, enemy: { damageDealt: 0 } },
     waveIndex: 0,
-    nextWaveTick: Number.MAX_SAFE_INTEGER,
     waves: [],
     aiProfile: 'none',
     winCondition: 'annihilation',
     outcome: 'ongoing',
     levelId: 'test',
     worldWidth,
-    difficultyMult: 1,
     endless: false,
   };
 }

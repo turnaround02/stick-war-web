@@ -115,19 +115,11 @@ export interface World {
   trainingQueue: Record<Side, TrainingOrder[]>;
   /** Per-side combat accumulators. Serialised with the world. */
   stats: Record<Side, SideStats>;
-  /** Index of the next wave to spawn (scripted levels). */
+  /** Index of the next wave to spawn (scripted levels, and generated ones in endless). */
   waveIndex: number;
   /**
-   * Vestigial: written once by createWorld and never read. `advanceWaves` reads
-   * `atTick` straight off the wave table instead, so this is a second source of
-   * truth for wave timing that nothing keeps in sync. It is NOT hashed (it has
-   * no effect), and it should be deleted rather than trusted. Kept for now only
-   * because removing it touches types outside this milestone.
-   */
-  nextWaveTick: number;
-  /**
-   * Scripted wave table, copied off MatchConfig so cleanup can tell whether more
-   * enemy units are still due. Empty for economy-only matches.
+   * Wave table. Fixed for a scripted level; grown on demand when `endless`.
+   * Read by cleanup to tell whether more enemy units are still due.
    */
   waves: WaveScript[];
   /**
@@ -144,13 +136,11 @@ export interface World {
   // ── Match environment ────────────────────────────────────────────
   // These are copied off MatchConfig at construction so the systems can reach
   // them. Without worldWidth the separation step cannot clamp unit positions
-  // to the battlefield (spec §6.2), and without popCap / difficultyMult the
-  // economy and AI rules have no source for their limits (spec §8.3, §8.4).
+  // to the battlefield (spec §6.2), and without popCap the economy rules have
+  // no source for their limits (spec §8.3).
   /** Battlefield width. Units are clamped to [0, worldWidth]. */
   worldWidth: number;
-  /** Multiplier on enemy hp and attack. 1 = no scaling. */
-  difficultyMult: number;
-  /** Endless mode: waves are generated procedurally rather than scripted. */
+  /** Endless mode: waves are generated rather than scripted, and the match can only be lost. */
   endless: boolean;
 }
 

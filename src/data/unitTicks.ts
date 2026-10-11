@@ -8,9 +8,6 @@
  * Why not convert inside createWorld: createWorld builds a World, but
  * attackCooldown / windupTime are read by combatSystem, which has no access to
  * the unit definition table. A derived table is the only place both can reach.
- *
- * difficultyMult is a PER-MATCH multiplier and therefore must NOT live here —
- * it is applied at spawn time in M4/M5.
  */
 
 import { TICKS_PER_SEC, toTicks } from './constants';

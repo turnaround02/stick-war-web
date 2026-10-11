@@ -62,8 +62,6 @@ export interface MatchConfig {
   /** Scripted wave table. Empty when enemyAi is `economy`. */
   waves: WaveScript[];
   endless: boolean;
-  /** Multiplier applied to enemy HP and attack. 1 = no scaling. */
-  difficultyMult: number;
 
   /**
    * How the match is won. `annihilation` (default) is the historical rule:

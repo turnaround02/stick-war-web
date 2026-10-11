@@ -197,16 +197,6 @@ describe('hashWorld — M4 wave state', () => {
     expect(hashWorld(a)).not.toBe(hashWorld(b));
   });
 
-  it('does not depend on nextWaveTick, which nothing reads', () => {
-    // Kept in the type for compatibility but not consumed by advanceWaves,
-    // which reads atTick straight off the table. Hashing it would make the
-    // digest depend on a field with no effect.
-    const a = createWorld(scripted, 1);
-    const b = createWorld(scripted, 1);
-    b.nextWaveTick = 999;
-    expect(hashWorld(a)).toBe(hashWorld(b));
-  });
-
   it('changes when endless changes', () => {
     // M4a made this load-bearing: cleanupSystem reads it to decide whether an
     // empty enemy field can be a victory. Two worlds differing only in it can

@@ -94,7 +94,6 @@ export function createWorld(config: MatchConfig, seed: number): World {
       enemy: { damageDealt: 0 },
     },
     waveIndex: 0,
-    nextWaveTick: config.waves.length > 0 ? config.waves[0].atTick : Number.MAX_SAFE_INTEGER,
     waves: config.waves,
     // Only an economy enemy has a bank to spend, so only it gets a tactical
     // layer. A scripted level's force is entirely in its wave table.
@@ -105,7 +104,6 @@ export function createWorld(config: MatchConfig, seed: number): World {
     outcome: 'ongoing',
     levelId: config.levelId,
     worldWidth: config.worldWidth,
-    difficultyMult: config.difficultyMult,
     endless: config.endless,
   };
 }
