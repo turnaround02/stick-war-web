@@ -154,3 +154,67 @@ describe('advanceWaves — integration', () => {
     expect(world.outcome).toBe('ongoing');
   });
 });
+
+describe('advanceWaves — endless mode', () => {
+  const endlessCfg = (over: Partial<MatchConfig> = {}): MatchConfig => ({
+    ...DEFAULT_MATCH,
+    levelId: 'endless-probe',
+    startMiners: { player: 3, enemy: 0 },
+    initialUnits: { player: [], enemy: [] },
+    enemyAi: 'scripted',
+    endless: true,
+    waves: [],
+    ...over,
+  });
+
+  it('generates a wave even when the table starts empty', () => {
+    // The whole point: `waves: []` must not mean "no enemy ever".
+    const world = createWorld(endlessCfg(), 1);
+    for (let i = 0; i < 900; i++) step(world, []);
+    expect(enemies(world).length, 'a wave should have arrived').toBeGreaterThan(0);
+  });
+
+  it('keeps generating wave after wave', () => {
+    const world = createWorld(endlessCfg(), 1);
+    // Wave N is due at 750*N, so after 750*6 ticks exactly 5 have spawned
+    // (wave 6 is due AT 4500 and lands on the following tick).
+    for (let i = 0; i < 750 * 6; i++) step(world, []);
+    expect(world.waveIndex, 'five waves should have spawned').toBe(5);
+
+    // And generation does not stop there — that is the "endless" part.
+    for (let i = 0; i < 750 * 6; i++) step(world, []);
+    expect(world.waveIndex, 'generation must continue').toBeGreaterThanOrEqual(10);
+  });
+
+  it('does NOT generate for a non-endless level', () => {
+    // The regression that matters most: scripted levels keep their fixed table.
+    const world = createWorld(endlessCfg({ endless: false, waves: [] }), 1);
+    for (let i = 0; i < 3000; i++) step(world, []);
+    expect(enemies(world)).toHaveLength(0);
+    expect(world.waveIndex).toBe(0);
+  });
+
+  it('still respects a SCRIPTED table when not endless', () => {
+    const world = createWorld(
+      endlessCfg({ endless: false, waves: [{ atTick: 30, units: ['swordsman'] }] }),
+      1,
+    );
+    for (let i = 0; i < 60; i++) step(world, []);
+    expect(enemies(world)).toHaveLength(1);
+    expect(world.waveIndex).toBe(1);
+  });
+
+  it('spawns endless wave units on advance', () => {
+    const world = createWorld(endlessCfg(), 1);
+    for (let i = 0; i < 900; i++) step(world, []);
+    for (const u of enemies(world)) expect(u.stance).toBe('advance');
+  });
+
+  it('keeps the one-wave-per-call guarantee in endless', () => {
+    // A 4x frame runs several ticks; each tick must still admit at most one
+    // wave or the enemy's local density doubles.
+    const world = createWorld(endlessCfg(), 1);
+    for (let i = 0; i < 750; i++) step(world, []);
+    expect(world.waveIndex).toBeLessThanOrEqual(1);
+  });
+});

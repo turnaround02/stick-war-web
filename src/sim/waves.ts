@@ -12,12 +12,28 @@
  * be a knob with no user.
  */
 
+import { endlessWaveAt } from './endless';
 import { spawnUnit } from './spawn';
 import { findSpawnX } from './training';
-import type { Stance, World } from './types';
+import type { Stance, WaveScript, World } from './types';
 
 /** Posture for wave units. See the file comment for why it is not configurable. */
 export const WAVE_STANCE: Stance = 'advance';
+
+/**
+ * The wave that should be due next, extending the table when endless.
+ *
+ * Endless mode's table is grown on demand rather than pre-filled: "endless"
+ * means unbounded, and a 100-wave table is still a table with a last row.
+ */
+function nextDueWave(world: World): WaveScript | null {
+  if (world.waveIndex < world.waves.length) return world.waves[world.waveIndex];
+  if (!world.endless) return null;
+
+  const wave = endlessWaveAt(world.waveIndex + 1);
+  world.waves.push(wave);
+  return wave;
+}
 
 /**
  * Spawns the next wave if it is due. At most ONE wave per call, so a long frame
@@ -25,9 +41,8 @@ export const WAVE_STANCE: Stance = 'advance';
  * enemy's local density and change the fight.
  */
 export function advanceWaves(world: World): void {
-  if (world.waveIndex >= world.waves.length) return;
-
-  const wave = world.waves[world.waveIndex];
+  const wave = nextDueWave(world);
+  if (wave === null) return;
   if (world.tick < wave.atTick) return;
 
   for (const typeId of wave.units) {
