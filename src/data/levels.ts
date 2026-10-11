@@ -104,12 +104,35 @@ export const LEVEL_2: MatchConfig = {
 };
 
 /**
+ * Endless mode (spec §8.4.4).
+ *
+ * The enemy has NO economy: its force arrives through generated waves, and the
+ * wave budget is the entire difficulty curve. `endless: true` is what makes an
+ * empty enemy field non-terminal — the mode can only be LOST, never won by
+ * clearing the field.
+ *
+ * The player gets the same opening as level 2 so the mode starts from a known,
+ * playable position.
+ */
+export const LEVEL_ENDLESS: MatchConfig = {
+  ...DEFAULT_MATCH,
+  levelId: 'endless',
+  baseHp: { player: BASE_HP, enemy: 1500 },
+  startGold: { player: START_GOLD, enemy: 0 },
+  startMiners: { player: 3, enemy: 0 },
+  initialUnits: { player: [], enemy: [] },
+  enemyAi: 'scripted',
+  waves: [],
+  endless: true,
+};
+
+/**
  * The campaign, in play order.
  *
  * The ARRAY ORDER is the level order. There is deliberately no `order` field on
  * MatchConfig — two sources of truth for the same fact is one too many.
  */
-export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2];
+export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_ENDLESS];
 
 /** The seed the campaign starts on. Fixed so a level plays the same each time. */
 export const CAMPAIGN_SEED = 20260926;

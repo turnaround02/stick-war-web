@@ -39,8 +39,11 @@ describe('LEVEL_2 — shape (spec §8.4.3)', () => {
 });
 
 describe('LEVELS registry', () => {
-  it('lists the levels in play order', () => {
-    expect(LEVELS).toEqual([LEVEL_1, LEVEL_2]);
+  it('lists the campaign levels in play order', () => {
+    // Level 1, level 2, then endless. Endless is last on purpose: it is entered
+    // from level 2's result screen and has no "next level" of its own.
+    expect(LEVELS.slice(0, 2)).toEqual([LEVEL_1, LEVEL_2]);
+    expect(LEVELS).toHaveLength(3);
   });
 
   it('has unique level ids', () => {

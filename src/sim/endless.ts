@@ -21,7 +21,25 @@ import type { WaveScript } from './types';
 /** Seconds between waves. */
 export const ENDLESS_WAVE_INTERVAL_SECONDS = 25;
 
-/** Gold budget for a 1-based wave number (spec §8.4.4). */
+/**
+ * Gold budget for a 1-based wave number (spec §8.4.4).
+ *
+ * The slope is MEASURED, not assumed. Swept by driving LEVEL_ENDLESS through the
+ * real tick pipeline with the reference player, five seeds (all identical, since
+ * endless generation uses no PRNG):
+ *
+ *   seed 1 / 7 / 99 / 4242 / 20260926  ->  playerLose at WAVE 8 (225s)
+ *
+ * That matches the earlier standalone probe, which predicted wave 8 before the
+ * mode existed — two independent estimates agreeing, so the slope was left
+ * alone rather than tuned to hit spec §8.4.4's original "wave 12-15" claim.
+ * That claim was an estimate, not a measurement, and has been corrected in the
+ * spec.
+ *
+ * Note the direction if this ever needs changing: a STEEPER slope (bigger
+ * second coefficient) kills the player EARLIER, not later, because the enemy's
+ * force is free while the player pays for every replacement.
+ */
 export function endlessWaveBudget(n: number): number {
   return 100 + 60 * n;
 }
