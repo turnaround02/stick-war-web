@@ -22,6 +22,7 @@ import {
   pauseLabel,
   resourceText,
   speedHeaderRight,
+  speedLabel,
   trainButtonState,
   PAUSE_BUTTON,
   SPEED_BUTTON,
@@ -220,6 +221,9 @@ export function createHud(
       currentSpeed = speed;
       for (const b of speedButtons) {
         b.rect.setFillStyle(b.speed === currentSpeed ? BUTTON_ACTIVE : BUTTON_ON);
+        // The label must be written here, not just coloured: these buttons had
+        // no setText at all and rendered as empty rectangles.
+        b.label.setText(speedLabel(b.speed)).setColor(TEXT_LIGHT);
       }
     },
 

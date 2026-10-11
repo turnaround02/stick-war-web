@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   layoutPauseButton,
   pauseLabel,
+  speedLabel,
   layoutTrainButtons,
   layoutStanceButtons,
   layoutSpeedButtons,
@@ -187,8 +188,7 @@ describe('pause button', () => {
     expect(pause.x + pause.w).toBeLessThanOrEqual(speed[0].x);
   });
 
-  it('never overlaps the speed group', () => {
-    for (const width of [640, 1280, 1920]) {
+  it('never overlaps the speed group', () => {    for (const width of [640, 1280, 1920]) {
       const pause = layoutPauseButton(width, metrics);
       const speed = layoutSpeedButtons(width, metrics);
       expect(pause.x + pause.w, `width ${width}`).toBeLessThanOrEqual(speed[0].x);
@@ -252,5 +252,26 @@ describe('pause button', () => {
   it('reads Pause while running and Resume while paused', () => {
     expect(pauseLabel(false)).toBe('暂停');
     expect(pauseLabel(true)).toBe('继续');
+  });
+});
+
+describe('speedLabel', () => {
+  it('labels every speed the game offers', () => {
+    // The buttons were rendered as three BLANK rectangles: `setSpeed` only ever
+    // set the fill colour, so no code path called setText on their labels. The
+    // layout had a pauseLabel helper and no speedLabel counterpart, which is
+    // exactly how the gap went unnoticed.
+    for (const speed of SPEED_STEPS) {
+      expect(speedLabel(speed), `speed ${speed}`).toBe(`${speed}x`);
+    }
+  });
+
+  it('produces a distinct label per speed', () => {
+    const labels = SPEED_STEPS.map(speedLabel);
+    expect(new Set(labels).size).toBe(SPEED_STEPS.length);
+  });
+
+  it('never returns an empty label', () => {
+    for (const speed of SPEED_STEPS) expect(speedLabel(speed).length).toBeGreaterThan(0);
   });
 });

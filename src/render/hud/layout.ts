@@ -10,7 +10,7 @@
 import { UNITS, type UnitTypeId } from '../../data/units';
 import { canQueue } from '../../sim/training';
 import { t } from '../../i18n';
-import { SPEED_STEPS } from '../timestep';
+import { SPEED_STEPS, type GameSpeed } from '../timestep';
 import type { Side, Stance, World } from '../../sim/types';
 
 /** A screen-space rectangle for one HUD element. */
@@ -140,6 +140,17 @@ export const SPEED_BUTTON = { w: SPEED_BUTTON_W, h: SPEED_BUTTON_H, top: SPEED_T
 /** The pause button's label for the current state. */
 export function pauseLabel(paused: boolean): string {
   return t(paused ? 'ui.resume' : 'ui.pause');
+}
+
+/**
+ * A speed button's label, e.g. `1x`.
+ *
+ * Exists because the buttons shipped as three BLANK rectangles: `setSpeed` set
+ * only the fill colour and nothing ever called `setText` on their labels. There
+ * was a `pauseLabel` helper and no speed counterpart, which is how the gap hid.
+ */
+export function speedLabel(speed: GameSpeed): string {
+  return `${speed}x`;
 }
 
 /**
