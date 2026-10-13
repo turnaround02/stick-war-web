@@ -10,6 +10,8 @@ import type { MatchConfig, Side, Stance, Unit, UnitState, World } from '../../si
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
 import { createHud, type Hud } from '../hud';
 import { createResultOverlay, type ResultOverlay } from '../result';
+import { createFrontline, type Frontline } from '../frontline';
+import { shouldIgnoreClick } from '../clickGuard';
 import { Selection, selectedIdsOf } from '../selection';
 import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
@@ -46,6 +48,7 @@ export class BattleScene extends Phaser.Scene {
   private selectedMarker!: Phaser.GameObjects.Graphics;
   private hud!: Hud;
   private result!: ResultOverlay;
+  private frontline!: Frontline;
   private speed: GameSpeed = 1;
   private paused = false;
   /** Ticks simulated this match, for the result screen's "time taken". */
@@ -127,6 +130,8 @@ export class BattleScene extends Phaser.Scene {
       onNextLevel: () => this.goToNextLevel(),
     });
 
+    this.frontline = createFrontline(this);
+
     this.syncStickmen();
     this.layout();
     this.setupInput();
@@ -144,6 +149,7 @@ export class BattleScene extends Phaser.Scene {
       this.game.events.off(Phaser.Core.Events.BLUR, this.onWindowBlur);
       this.hud.destroy();
       this.result.destroy();
+      this.frontline.destroy();
     });
 
     // R replays the CURRENT level. A bare `restart()` would drop the level and
@@ -202,17 +208,18 @@ export class BattleScene extends Phaser.Scene {
 
   /** Selects the unit under the pointer, or clears the selection on empty ground. */
   private handleClick(pointer: Phaser.Input.Pointer): void {
-    // HUD clicks are handled by the interactive objects themselves; ignoring
-    // them here stops a button press from also clearing the selection.
-    const cam = this.cameras.main;
-    const hudTop = this.scale.height - 64;
-    if (pointer.y >= hudTop) return;
-    if (pointer.y <= 56 && (pointer.x <= 240 || pointer.x >= this.scale.width - 240)) return;
+    // HUD chrome and the frontline indicator own their own clicks; ignoring
+    // them here stops a button press from also clearing the selection, and
+    // stops a click on the top-centre indicator from (de)selecting a unit.
+    // The reserved regions live in a pure, tested module so the indicator's
+    // width tracks the viewport instead of a hardcoded span.
+    if (shouldIgnoreClick(pointer.x, pointer.y, this.scale.width, this.scale.height)) return;
 
     // Phaser's own inverse. Hand-rolling `pointer.x / zoom + scrollX` is wrong
     // once zoom != 1: with originX 0.5 the camera overhangs the origin by
     // (W/z - W)/2, so the error is 427 world px at 0.6x and 107 at 1.2x — a
     // click would select a unit far to its right, or nothing at all.
+    const cam = this.cameras.main;
     const worldX = cam.getWorldPoint(pointer.x, pointer.y).x;
     const hit = this.world.units.find(
       (u) => u.side === 'player' && u.state !== 'dead' && Math.abs(u.x - worldX) <= 20,
@@ -324,6 +331,7 @@ export class BattleScene extends Phaser.Scene {
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
     this.drawSelectionMarkers();
     this.hud.sync(this.world);
+    this.frontline.sync(this.world);
     this.result.sync(this.world, this.elapsedTicks, this.nextButtonLabel());
 
     if (ticks > 0 || this.paused || decided) {
@@ -352,6 +360,7 @@ export class BattleScene extends Phaser.Scene {
     this.projectiles.setGroundY(this.groundY);
     this.syncStickmen();
     this.hud.layout(width, height);
+    this.frontline.layout(width);
     this.result.layout(width, height);
   }
 
