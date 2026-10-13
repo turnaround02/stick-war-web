@@ -11,12 +11,14 @@ import {
   trainButtonState,
   PAUSE_BUTTON,
   SPEED_BUTTON,
+  STANCE_BUTTONS,
   type HudMetrics,
 } from './layout';
 import { UNITS } from '../../data/units';
 import { SPEED_STEPS } from '../timestep';
 import { createWorld } from '../../sim/createWorld';
 import { DEFAULT_MATCH } from '../../data/levels';
+import { t } from '../../i18n';
 
 const metrics: HudMetrics = {
   buttonW: 108,
@@ -137,6 +139,16 @@ describe('layoutTrainButtons', () => {
 describe('layoutStanceButtons', () => {
   it('lays out three buttons', () => {
     expect(layoutStanceButtons(1280, 720, metrics)).toHaveLength(3);
+  });
+
+  it('has a real translation for every stance button key', () => {
+    // The renderer writes each stance label from t(key) on every sync (the
+    // cached-label0 defect meant a locale change never reached these buttons).
+    // The Phaser HUD is untestable, so guard the mechanism here: every key must
+    // resolve to something other than itself.
+    for (const { key } of STANCE_BUTTONS) {
+      expect(t(key), `missing translation for ${key}`).not.toBe(key);
+    }
   });
 
   it('places them after the train buttons with no overlap', () => {

@@ -135,7 +135,7 @@ export function createHud(
 
   const stanceButtons = STANCE_BUTTONS.map(({ stance, key }) => ({
     stance,
-    label0: t(key),
+    key,
     ...barButton(() => callbacks.onStance(stance)),
   }));
 
@@ -215,6 +215,11 @@ export function createHud(
         b.label.setText(state.label).setColor(state.enabled ? TEXT_LIGHT : TEXT_DIM);
         b.reason.setText(state.reason);
       }
+
+      // Stance labels are refreshed every sync, NOT cached at construction: a
+      // cached label0 never followed a locale change (spec §7.5.1). The strings
+      // are static, so this is a cheap setText with no visible cost.
+      for (const b of stanceButtons) b.label.setText(t(b.key));
     },
 
     setSpeed(speed: GameSpeed): void {
@@ -245,8 +250,8 @@ export function createHud(
     },
   };
 
-  // The stance buttons' labels never change; set them once.
-  for (const b of stanceButtons) b.label.setText(b.label0);
+  // The stance buttons' labels are set by the first sync (see sync()), so they
+  // follow the active locale rather than a value frozen at construction.
 
   // A first layout so nothing sits at (0,0) before the scene's first resize.
   hud.layout(scene.scale.width, scene.scale.height);
