@@ -34,8 +34,7 @@ const STATE_CYCLE_TICKS: Partial<Record<UnitState, number>> = {
  * Owns the Phaser side of the game: camera, drawing, and the fixed-timestep
  * driver. Reads sim state every frame and NEVER writes to it (spec §3.1).
  */
-export class BattleScene extends Phaser.Scene {
-  private world!: World;
+export class BattleScene extends Phaser.Scene {  private world!: World;
   private groundLine!: Phaser.GameObjects.Graphics;
   private groundY = 0;
   private stickmen = new Map<number, Stickman>();
@@ -60,6 +59,8 @@ export class BattleScene extends Phaser.Scene {
   private saveData: SaveData = loadSave(this.saveStorage);
   /** True once this match's result has been written, so update() writes once. */
   private resultRecorded = false;
+  /** Smoothed frames-per-second, shown on the tick label in dev builds only. */
+  private fps = 0;
 
   /** Which level is loaded, and with which seed. Set by init(). */
   private config: MatchConfig = LEVELS[0];
@@ -326,6 +327,10 @@ export class BattleScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     this.updateCamera(delta);
 
+    // Exponential moving average, so the dev readout is legible rather than
+    // flickering. delta is ms; guard against a zero/garbage delta.
+    if (delta > 0) this.fps = this.fps === 0 ? 1000 / delta : this.fps * 0.9 + (1000 / delta) * 0.1;
+
     // Render-only work runs even while paused: a pause must freeze the
     // simulation, not the interface. Skipping this would leave a click made
     // while paused invisible until the player resumed.
@@ -355,9 +360,22 @@ export class BattleScene extends Phaser.Scene {
 
     if (ticks > 0 || this.paused || decided) {
       this.tickLabel.setText(
-        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}`,
+        `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}${this.fpsSuffix()}`,
       );
     }
+  }
+
+  /**
+   * The dev-only FPS suffix for the tick label.
+   *
+   * Gated on `import.meta.env.DEV` so the production bundle shows no FPS at all
+   * (spec §13.9 Q7/Q11). The acceptance for the perf standard is an EXTERNAL
+   * Playwright measurement (S3), not this counter — this is just a handy dev
+   * readout. Smoothed so a single slow frame does not make the number jump.
+   */
+  private fpsSuffix(): string {
+    if (!import.meta.env.DEV) return '';
+    return `  |  fps ~${Math.round(this.fps)}`;
   }
 
   /**
