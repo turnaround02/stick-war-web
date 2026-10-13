@@ -1085,6 +1085,8 @@ function runScenario(scenario: Scenario, seed: number, maxTicks: number): Scenar
 
 **M5b 验收：** ①战线指示器分桶纯算术单测通过，窗口缩放与相机滚动下位置正确 ②顶部中央点击守卫（指示器不被点击穿透）③localStorage 损坏时**静默回落**不崩溃 ④无尽模式 HUD 显示当前波次、结算显示「撑到第 N 波 + 历史最高」⑤`level.endless.name` 键补齐、姿态按钮 `label0` 随语言刷新 ⑥全量测试 + tsc + lint 全绿。
 
+**M5b 交付（2026-10-13，738 tests）：** 全部达成。新增 `render/frontline/`、`render/clickGuard.ts`、`save/storage.ts`；`i18n/` 加 `LOCALES`+`setLocale`；`render/hud`/`render/result` 无尽分支；`BattleScene`/`BootScene` 存档接线；dev-only FPS。**未触碰 `src/sim/`**，关卡 1 指纹、关卡 2 的 276s、`counter-relations` 全绿。浏览器实测发现并修掉「无尽波次行与 tick 标签重叠」（波次行下移到 y=64）。
+
 **M5c 验收：** ①音效在首次输入前不创建 `AudioContext`，暂停与结算时静默 ②**部署**：有 remote 才验；无 remote 则**如实记为「未做」**，不假装完成。
 
 **风险前置理由：** M1~M3 是「技术风险」，M4~M5 是「内容与打磨」。把风险前置，能在第三天就知道这套架构是否撑得住。

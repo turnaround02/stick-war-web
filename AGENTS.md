@@ -90,7 +90,8 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M4a AI 与波次**（已合并至 `master`，**567 tests**）
 - [x] **M4b 关卡、胜负条件与结算界面**（已合并，**653 tests**）
 - [x] **M5a 无尽模式**（**已直接提交至 `master`**，685 tests）
-- [ ] **M5b 表现层与部署**
+- [x] **M5b 表现层与基础设施**（战线指示器 / i18n locale / localStorage / 无尽 HUD 适配 / dev FPS，**738 tests**）
+- [ ] **M5c 音效与部署**（需外部条件：音效的状态差分细节、部署需用户提供 git remote）
 
 ## M5a 已交付
 
@@ -109,6 +110,32 @@ npm run lint     # ESLint（含 sim 边界检查）
 - **无尽只能战败。** `endless: true` 让「敌方单位归零」永不判胜（M4a 已实现）；玩家侧「单位归零即负」无条件保持。
 - **实测：参考玩家在第 8 波战败（225s）**，5 个种子完全一致。这个值**被测试钉死**（不只是区间）—— 区间会在注释悄悄说谎时依然通过，M4b 已因此吃过两次亏。
 - **`rngState` 被哈希但从未被消费** —— 所以不同种子产生**不同哈希、相同对局**。不影响正确性，但是确定性守卫里的一处噪声（spec §15 有记录）。
+
+## M5b 已交付
+
+表现层与基础设施收口：战线终于有了全局视图，进度终于记得住，无尽终于显示分数。**全部在 `render/`、`i18n/`、新增 `save/` 内完成，未触碰 `src/sim/`**，所以无 `hashWorld` 风险，也不改变任何对局行为（关卡 1 指纹、关卡 2 的 276s、`counter-relations` 全绿）。
+
+- `render/frontline/layout.ts`（新）— 纯函数：`combatUnitCounts`（**只统计战斗单位**，24 桶，边界归左桶、越界钳到首/末桶）、`normalizeCounts`、`frontlinePanelRect`（视口 40% 居中）、`baseBarRects`
+- `render/frontline/index.ts`（新）— 薄渲染器：直方图（玩家从中线向上、敌方向下）+ 双方基地血条
+- `render/clickGuard.ts`（新）— 纯函数 `shouldIgnoreClick`：保留底部 HUD、顶部左右各 240px、**顶部中央指示器**（按指示器实际矩形，随视口宽变化）
+- `i18n/index.ts` — `LOCALES` 注册表 + `setLocale`/`getLocale`，`t()` 查当前表
+- `save/storage.ts`（新）— 单一键 `stick-war-web:save`，`loadSave` **容错读**、`saveGame` try/catch、`advanceFurthestLevel`（**仅赢时推进、不回退、封顶**）、`recordBestWave`、`browserStorage`
+- `render/hud/` — 无尽波次行（`waveText` 纯函数）+ **修 `label0` 缓存缺陷**
+- `render/result/` — `resultSubtitle(levelId, ticks, extra?)` 无尽分支追加「波次 N · 最高 M」
+- `render/scenes/BattleScene.ts` — 存档接线（读速度偏好、赢时推进进度、无尽败时写最高波次）+ dev-only FPS
+- `render/scenes/BootScene.ts` — **从最远解锁关卡开始**
+- `src/vite-env.d.ts`（新）— 让 `import.meta.env.DEV` 有类型
+
+### M5b 的关键设计（容易忘的）
+
+- **直方图只统计战斗单位，不含矿工。** 矿工在基地与矿点之间往返，会形成两座**静态凸起**，把战线信号淹没。这是 spec §7.3.1 的硬性口径。
+- **顶部中央会被点击穿透（已修）。** 原 `handleClick` 只保留左右各 240px，而指示器在顶部**居中** —— 点它会误选/取消单位。现在走纯函数 `shouldIgnoreClick`，保留区**由指示器布局推导**，不再是写死的 240px。
+- **进度 = 最远解锁，仅在赢时推进，且封顶在最后一关。** `advanceFurthestLevel(cur, wonIdx, won, maxIndex)` 返回 `min(maxIndex, max(cur, wonIdx+1))`：赢 `i` 解锁 `i+1`；**打败最后一个战役关不能把「恢复」停在无尽**（无尽不可通关）。`LAST_CAMPAIGN_INDEX` 用**扫描**算出（`findLastIndex` 是 ES2023，超出本项目 ES2020 lib）。
+- **存档读取必须容错。** 损坏 JSON / `version` 不符 / 缺字段 / `getItem` 抛异常 —— 全部**静默回落**，绝不崩。写路径 try/catch（隐私模式）。**不存进行中的对局**：刷新 = 从最远关卡重开。
+- **`level.endless.name` 曾缺失** → 无尽结算显示裸键。已补，并加**常备护栏测试**：遍历 `LEVELS` 断言每个 `level.<id>.name` 存在（将来加关卡漏键会被抓住）。
+- **`label0` 缺陷**：姿态按钮的标签在构造时缓存、`sync` 不刷新，语言切换不会反映。已改为**每次 `sync` 从 `t(key)` 重取**。
+- **FPS 仅 dev 显示。** `fpsSuffix()` 由 `import.meta.env.DEV` 门控，生产构建会**常量折叠成 `return ""`**（已在 `dist` 中核实）。性能验收本身是**外部 Playwright 实测**（S3），不是这个计数器。
+- **浏览器实测（肉眼项）**：①指示器随缩放/相机正确、矿工不入直方图 ②点指示器不误选、点单位仍能选中 ③无尽 HUD 显示「波次 N」、结算显示「无尽模式 · 用时 · 波次 N · 最高 M」（无裸键）④手改存档为 `{furthestLevel:2, speedPreference:4}` 后刷新 → 直接进无尽、速度 4x ⑤失败后 `furthestLevel` **未推进**（仍为 0）。**发现并修掉一处**：无尽波次行与 tick 标签在 y≈44 重叠 → 波次行下移到 y=64，资源面板背景随波次可见性增高。
 
 ## M3 已交付
 
@@ -211,15 +238,15 @@ npm run lint     # ESLint（含 sim 边界检查）
 4. ~~`RENDER_DEMO_MATCH` 仍被使用~~ → **已删除**，改为 `LEVELS`。
 5. ~~`difficultyMult` 仍是死字段~~ → **M5a 已删除**（决定不用它，见 spec §15）。
 
-## M5b 开工前必须处理
+## M5b 开工前必须处理（已全部解决，仅音效/部署拆到 M5c）
 
-1. **战线指示器未做**（spec §7.3 称之为「唯一的全局态势来源」）：顶部居中，宽为视口 40%，含双方基地血条 + 单位分布直方图。**必须抽 Phaser-free 模块并配测试**（分桶是纯算术，正是「肉眼看着对、边界错一位」的东西）。
-2. **音效未做**（spec §7.4 列了 6 种）：挥砍/命中/死亡/金币入账/造兵完成/基地受损。**首次用户输入前不创建 `AudioContext`**；**暂停与结算时不播放**；`windupTicksLeft` 是音画同步点。
-3. **localStorage 未做**（spec §10.1）：关卡进度、设置、无尽最高波次，**必须带版本号字段**，**读取必须容错**（损坏/版本不符静默回落，不崩溃），**不存进行中的对局**。
-4. **i18n 只有中文**：M5b 加 locale 概念与切换，**不写英文文案**。
-5. **无尽模式的 HUD 与结算未适配**：无尽要显示**当前波次**（「第几波」就是分数）与历史最高波次；结果浮层的按钮**按关卡类型区分**（无尽 = 重玩 + 返回第一关，**没有下一关**）。
-6. **部署未做**：无 `.github/`，**且无 git remote**。`vite base = '/stick-war-web/'` 已配好。**没有 remote 就如实记为「未做」**，不假装完成。
-7. **性能验收已改写**（S3）：原「同屏 120 单位 ≥ 58fps」在测一个**不存在的场景**（实测峰值 23~25 单位）。改为按**实测负载**表述。
+1. ~~战线指示器未做~~ → `render/frontline/{layout,index}.ts`（**只统计战斗单位**、24 桶）+ `render/clickGuard.ts`（顶部中央点击守卫）。
+2. **音效未做**（spec §7.4 列了 6 种）→ **拆到 M5c**（需肉眼验收：首次输入解锁、暂停/结算静默）。
+3. ~~localStorage 未做~~ → `save/storage.ts`（单一键、带版本号、**读取容错**）。
+4. ~~i18n 只有中文~~ → `i18n/index.ts` 加 `LOCALES` + `setLocale`；**不写英文文案**。
+5. ~~无尽模式的 HUD 与结算未适配~~ → HUD 波次行 + 结算副标题追加波次/最高。
+6. **部署未做** → **拆到 M5c**：无 `.github/`，**且无 git remote**。**没有 remote 就如实记为「未做」**。
+7. ~~性能验收已改写~~（S3）：按**实测负载（约 25 单位）**表述；dev-only FPS 已加。
 
 ## 原 M4 开工前必须处理（M4a 已清）
 

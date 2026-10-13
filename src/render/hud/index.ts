@@ -85,10 +85,12 @@ export function createHud(
     .setScrollFactor(0)
     .setDepth(TEXT_DEPTH);
 
-  // Endless wave readout, under the resource line. Hidden when empty so a
-  // campaign level shows nothing (spec §13.8 Q17: the wave IS the score).
+  // Endless wave readout, on its own line below the resource and tick labels.
+  // Hidden when empty so a campaign level shows nothing (spec §13.8 Q17: the
+  // wave IS the score). Placed below the tick label (y=44) so the two never
+  // overlap — the tick label is always present, only its FPS suffix is dev-only.
   const waveText_ = scene.add
-    .text(12 + 10, 12 + 34, '', { fontFamily: FONT, fontSize: '14px', color: TEXT_DIM })
+    .text(12 + 10, 64, '', { fontFamily: FONT, fontSize: '14px', color: TEXT_DIM })
     .setScrollFactor(0)
     .setDepth(TEXT_DEPTH);
 
@@ -213,12 +215,17 @@ export function createHud(
 
     sync(world: World): void {
       resourceText_.setText(resourceText(world, side));
-      resourceBg.clear();
-      resourceBg.fillStyle(BG_COLOR, BG_ALPHA);
-      resourceBg.fillRect(12, 12, resourceText_.width + 20, resourceText_.height + 16);
 
       const wave = waveText(world);
       waveText_.setText(wave).setVisible(wave !== '');
+
+      resourceBg.clear();
+      resourceBg.fillStyle(BG_COLOR, BG_ALPHA);
+      // The backdrop covers the wave line too when it is shown, so the two
+      // readouts form one panel rather than the wave floating on bare ground.
+      const bgW = Math.max(resourceText_.width, wave !== '' ? waveText_.width : 0) + 20;
+      const bgH = wave !== '' ? waveText_.y + waveText_.height + 6 - 12 : resourceText_.height + 16;
+      resourceBg.fillRect(12, 12, bgW, bgH);
 
       for (const b of trainButtons) {
         const state = trainButtonState(world, side, b.typeId);
