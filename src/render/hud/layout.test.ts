@@ -9,6 +9,7 @@ import {
   resourceText,
   speedHeaderRight,
   trainButtonState,
+  waveText,
   PAUSE_BUTTON,
   SPEED_BUTTON,
   STANCE_BUTTONS,
@@ -54,6 +55,31 @@ describe('resourceText', () => {
     w.gold.enemy = 900;
     expect(resourceText(w, 'player')).toContain('100');
     expect(resourceText(w, 'enemy')).toContain('900');
+  });
+});
+
+describe('waveText', () => {
+  it('is empty for a non-endless match', () => {
+    // Scripted/campaign levels have no wave SCORE; showing a wave number there
+    // would imply a meaning the mode does not have.
+    const w = world();
+    w.endless = false;
+    expect(waveText(w)).toBe('');
+  });
+
+  it('shows the current wave for an endless match', () => {
+    const w = world();
+    w.endless = true;
+    w.waveIndex = 8;
+    expect(waveText(w)).toContain('8');
+    expect(waveText(w)).toContain('波次');
+  });
+
+  it('shows wave 0 before the first wave has spawned', () => {
+    const w = world();
+    w.endless = true;
+    w.waveIndex = 0;
+    expect(waveText(w)).toContain('0');
   });
 });
 

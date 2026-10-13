@@ -31,7 +31,7 @@ export interface ResultOverlayCallbacks {
 
 export interface ResultOverlay {
   /** Shows/hides and rewrites the copy. `nextLabel` is chosen by the scene. */
-  sync(world: World, ticks: number, nextLabel: string): void;
+  sync(world: World, ticks: number, nextLabel: string, endless?: { wave: number; bestWave: number }): void;
   layout(width: number, height: number): void;
   destroy(): void;
 }
@@ -97,13 +97,13 @@ export function createResultOverlay(
   const all = [dim, panel, title, subtitle, replay.rect, replay.label, next.rect, next.label];
 
   return {
-    sync(world: World, ticks: number, nextLabel: string): void {
+    sync(world: World, ticks: number, nextLabel: string, endless?: { wave: number; bestWave: number }): void {
       const visible = shouldShowResult(world);
       for (const o of all) o.setVisible(visible);
       if (!visible) return;
 
       title.setText(resultTitle(world.outcome));
-      subtitle.setText(resultSubtitle(world.levelId, ticks));
+      subtitle.setText(resultSubtitle(world.levelId, ticks, endless));
       next.label.setText(nextLabel);
     },
 

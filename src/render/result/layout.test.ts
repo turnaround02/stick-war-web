@@ -73,6 +73,20 @@ describe('resultSubtitle', () => {
   it('falls back to the raw id for an unknown level', () => {
     expect(resultSubtitle('mystery', 0)).toContain('mystery');
   });
+
+  it('appends wave and best wave for an endless match', () => {
+    const s = resultSubtitle('endless', 30 * 225, { wave: 8, bestWave: 12 });
+    expect(s).toContain('无尽模式');
+    expect(s).toContain('8');
+    expect(s).toContain('12');
+  });
+
+  it('is byte-for-byte unchanged for a non-endless match', () => {
+    // Backward compatibility: the campaign overlay must not gain any extra
+    // text. Passing no `extra` must reproduce the old output exactly.
+    const withExtra = resultSubtitle('level-1', 30 * 169);
+    expect(withExtra).toBe(`${'第一关'} · ${'用时'} 2:49`);
+  });
 });
 
 describe('resultPanelRect', () => {

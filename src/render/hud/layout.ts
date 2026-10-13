@@ -56,6 +56,19 @@ export function resourceText(world: World, side: Side): string {
   return `${t('ui.gold')} ${gold}    ${t('ui.population')} ${pop}/${cap}`;
 }
 
+/**
+ * The endless wave readout, or '' for a non-endless match.
+ *
+ * In endless mode "which wave you reached" IS the score (spec §13.8 Q17), so it
+ * gets its own HUD line. A campaign level has no such score — showing a wave
+ * number there would imply a meaning the mode does not have — hence the empty
+ * string rather than a hidden element with content.
+ */
+export function waveText(world: World): string {
+  if (!world.endless) return '';
+  return `${t('ui.wave')} ${world.waveIndex}`;
+}
+
 /** Label, enabled state, and — when disabled — why. */
 export function trainButtonState(
   world: World,

@@ -50,8 +50,12 @@ export function formatDuration(ticks: number): string {
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
 
-export function resultSubtitle(levelId: string, ticks: number): string {
-  return `${t(`level.${levelId}.name`)} · ${t('result.time')} ${formatDuration(ticks)}`;
+export function resultSubtitle(levelId: string, ticks: number, extra?: { wave: number; bestWave: number }): string {
+  const base = `${t(`level.${levelId}.name`)} · ${t('result.time')} ${formatDuration(ticks)}`;
+  // Endless mode appends the score: the wave reached and the best ever. Absent
+  // `extra` (every campaign level) reproduces the old string exactly.
+  if (!extra) return base;
+  return `${base} · ${t('ui.wave')} ${extra.wave} · ${t('result.best')} ${extra.bestWave}`;
 }
 
 /** A centred panel that always fits the viewport. */

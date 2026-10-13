@@ -134,5 +134,19 @@ export const LEVEL_ENDLESS: MatchConfig = {
  */
 export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_ENDLESS];
 
+/**
+ * Index of the LAST campaign (winnable) level.
+ *
+ * Endless is the final entry in LEVELS but cannot be "completed", so progress
+ * is capped here: beating the last campaign level must not park a resume in a
+ * mode the player cannot win. Computed by scan (not `findLastIndex`, which is
+ * ES2023 and outside this project's ES2020 lib).
+ */
+export const LAST_CAMPAIGN_INDEX = (() => {
+  let last = 0;
+  for (let i = 0; i < LEVELS.length; i++) if (!LEVELS[i].endless) last = i;
+  return last;
+})();
+
 /** The seed the campaign starts on. Fixed so a level plays the same each time. */
 export const CAMPAIGN_SEED = 20260926;

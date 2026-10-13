@@ -24,6 +24,7 @@ import {
   speedHeaderRight,
   speedLabel,
   trainButtonState,
+  waveText,
   PAUSE_BUTTON,
   SPEED_BUTTON,
   STANCE_BUTTONS,
@@ -81,6 +82,13 @@ export function createHud(
   const resourceBg = scene.add.graphics().setScrollFactor(0).setDepth(BAR_DEPTH);
   const resourceText_ = scene.add
     .text(12 + 10, 12 + 8, '', { fontFamily: FONT, fontSize: '16px', color: TEXT_LIGHT })
+    .setScrollFactor(0)
+    .setDepth(TEXT_DEPTH);
+
+  // Endless wave readout, under the resource line. Hidden when empty so a
+  // campaign level shows nothing (spec §13.8 Q17: the wave IS the score).
+  const waveText_ = scene.add
+    .text(12 + 10, 12 + 34, '', { fontFamily: FONT, fontSize: '14px', color: TEXT_DIM })
     .setScrollFactor(0)
     .setDepth(TEXT_DEPTH);
 
@@ -209,6 +217,9 @@ export function createHud(
       resourceBg.fillStyle(BG_COLOR, BG_ALPHA);
       resourceBg.fillRect(12, 12, resourceText_.width + 20, resourceText_.height + 16);
 
+      const wave = waveText(world);
+      waveText_.setText(wave).setVisible(wave !== '');
+
       for (const b of trainButtons) {
         const state = trainButtonState(world, side, b.typeId);
         b.rect.setFillStyle(state.enabled ? BUTTON_ON : BUTTON_OFF);
@@ -240,6 +251,7 @@ export function createHud(
     destroy(): void {
       resourceBg.destroy();
       resourceText_.destroy();
+      waveText_.destroy();
       barBg.destroy();
       speedHeader.destroy();
       for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton]) {

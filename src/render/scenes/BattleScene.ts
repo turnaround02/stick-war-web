@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
 import { TICKS_PER_SEC, WORLD_WIDTH } from '../../data/constants';
-import { CAMPAIGN_SEED, LEVELS } from '../../data/levels';
+import { CAMPAIGN_SEED, LAST_CAMPAIGN_INDEX, LEVELS } from '../../data/levels';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { UnitTypeId } from '../../data/units';
 import { CommandQueue, KeyState, setStance as cmdSetStance, train as cmdTrain } from '../../input/desktop';
 import { t } from '../../i18n';
+import { advanceFurthestLevel, browserStorage, loadSave, recordBestWave, saveGame, type SaveData } from '../../save/storage';
 import { createWorld } from '../../sim/createWorld';
 import type { MatchConfig, Side, Stance, Unit, UnitState, World } from '../../sim/types';
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
@@ -54,6 +55,12 @@ export class BattleScene extends Phaser.Scene {
   /** Ticks simulated this match, for the result screen's "time taken". */
   private elapsedTicks = 0;
 
+  /** The browser save, read at match start and written on a decided match. */
+  private readonly saveStorage = browserStorage();
+  private saveData: SaveData = loadSave(this.saveStorage);
+  /** True once this match's result has been written, so update() writes once. */
+  private resultRecorded = false;
+
   /** Which level is loaded, and with which seed. Set by init(). */
   private config: MatchConfig = LEVELS[0];
   private seed = CAMPAIGN_SEED;
@@ -101,7 +108,10 @@ export class BattleScene extends Phaser.Scene {
     this.commands = new CommandQueue();
     this.keys = new KeyState();
     this.selection = new Selection();
-    this.speed = 1;
+    // Start at the saved speed preference; the HUD highlights it below.
+    this.saveData = loadSave(this.saveStorage);
+    this.speed = this.saveData.speedPreference;
+    this.resultRecorded = false;
     this.paused = false;
     this.elapsedTicks = 0;
     this.stickmen.clear();
@@ -118,6 +128,9 @@ export class BattleScene extends Phaser.Scene {
       onSpeedChange: (speed: GameSpeed) => {
         this.speed = speed;
         this.hud.setSpeed(speed);
+        // Persist the preference so the next match opens at the same speed.
+        this.saveData = { ...this.saveData, speedPreference: speed };
+        saveGame(this.saveStorage, this.saveData);
       },
       onTogglePause: () => this.togglePause(),
     });
@@ -327,18 +340,64 @@ export class BattleScene extends Phaser.Scene {
         : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
     this.elapsedTicks += ticks;
 
+    // Once the match is decided, record the result exactly once (spec §10.1.1).
+    if (decided && !this.resultRecorded) {
+      this.resultRecorded = true;
+      this.recordResult();
+    }
+
     this.syncStickmen();
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
     this.drawSelectionMarkers();
     this.hud.sync(this.world);
     this.frontline.sync(this.world);
-    this.result.sync(this.world, this.elapsedTicks, this.nextButtonLabel());
+    this.result.sync(this.world, this.elapsedTicks, this.nextButtonLabel(), this.endlessResultInfo());
 
     if (ticks > 0 || this.paused || decided) {
       this.tickLabel.setText(
         `tick ${this.world.tick}  |  ${TICKS_PER_SEC} Hz  |  ${this.speed}x${this.paused ? '  ||' : ''}`,
       );
     }
+  }
+
+  /**
+   * The endless score for the result overlay: the wave reached and the best
+   * ever. Undefined for a campaign level, which has no wave score.
+   */
+  private endlessResultInfo(): { wave: number; bestWave: number } | undefined {
+    if (!this.world.endless) return undefined;
+    return { wave: this.world.waveIndex, bestWave: this.saveData.endlessBestWave };
+  }
+
+  /**
+   * Persists this match's outcome: level progress on a win, best wave in
+   * endless. The decisions themselves live in pure, tested helpers; this only
+   * routes their answers to storage.
+   */
+  private recordResult(): void {
+    const won = this.world.outcome === 'playerWin';
+    let data = this.saveData;
+
+    if (this.world.endless) {
+      // Endless is always a loss; the score is the wave reached.
+      data = {
+        ...data,
+        endlessBestWave: recordBestWave(data.endlessBestWave, this.world.waveIndex),
+      };
+    } else {
+      data = {
+        ...data,
+        furthestLevel: advanceFurthestLevel(
+          data.furthestLevel,
+          this.levelIndex,
+          won,
+          LAST_CAMPAIGN_INDEX,
+        ),
+      };
+    }
+
+    this.saveData = data;
+    saveGame(this.saveStorage, data);
   }
 
   /**

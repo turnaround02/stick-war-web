@@ -112,17 +112,24 @@ describe('saveGame', () => {
 });
 
 describe('advanceFurthestLevel', () => {
-  it('advances only on a win', () => {
-    expect(advanceFurthestLevel(1, 2, true)).toBe(2);
-    expect(advanceFurthestLevel(1, 2, false)).toBe(1);
+  const MAX = 2; // three levels: indices 0,1,2 (endless is last, not winnable)
+
+  it('unlocks the NEXT level on a win', () => {
+    expect(advanceFurthestLevel(0, 0, true, MAX)).toBe(1);
+    expect(advanceFurthestLevel(1, 1, true, MAX)).toBe(2);
   });
 
-  it('never regresses', () => {
-    expect(advanceFurthestLevel(3, 1, true)).toBe(3);
+  it('advances nothing on a loss', () => {
+    expect(advanceFurthestLevel(1, 1, false, MAX)).toBe(1);
   });
 
-  it('does not advance past the level just won', () => {
-    expect(advanceFurthestLevel(0, 1, true)).toBe(1);
+  it('never regresses when replaying an earlier level', () => {
+    expect(advanceFurthestLevel(2, 0, true, MAX)).toBe(2);
+  });
+
+  it('caps at the last campaign level', () => {
+    // Beating the final campaign level must not land the player on endless.
+    expect(advanceFurthestLevel(1, MAX, true, MAX)).toBe(MAX);
   });
 });
 

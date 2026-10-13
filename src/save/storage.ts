@@ -102,15 +102,40 @@ export function saveGame(storage: StorageLike, data: SaveData): void {
 /**
  * The furthest level after finishing `wonLevelIndex`, advancing ONLY on a win.
  *
- * Losing does not unlock anything, and progress never regresses (replaying an
- * earlier level and losing must not lock a later one back up).
+ * Winning level `i` unlocks `i + 1` (the next level is what a "resume" should
+ * start), so this returns `min(maxIndex, max(current, wonLevelIndex + 1))`.
+ * `maxIndex` caps progress at the last campaign level: beating the final level
+ * must not park the player in a mode they cannot win (endless). Losing advances
+ * nothing, and progress never regresses (replaying an earlier level and losing
+ * must not lock a later one back up).
  */
-export function advanceFurthestLevel(current: number, wonLevelIndex: number, won: boolean): number {
+export function advanceFurthestLevel(
+  current: number,
+  wonLevelIndex: number,
+  won: boolean,
+  maxIndex: number,
+): number {
   if (!won) return current;
-  return Math.max(current, wonLevelIndex);
+  return Math.min(maxIndex, Math.max(current, wonLevelIndex + 1));
 }
 
 /** The best wave after reaching `wave`: the maximum, never a regression. */
 export function recordBestWave(current: number, wave: number): number {
   return Math.max(current, wave);
+}
+
+/**
+ * The browser's localStorage, or a no-op stub when it is unavailable.
+ *
+ * Wrapping the global here keeps the rest of the code free of `typeof
+ * localStorage` checks, and means a sandboxed/blocked storage degrades to "no
+ * save" instead of crashing at startup.
+ */
+export function browserStorage(): StorageLike {
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage;
+  } catch {
+    // Accessing localStorage itself can throw in some sandboxed contexts.
+  }
+  return { getItem: () => null, setItem: () => {} };
 }
