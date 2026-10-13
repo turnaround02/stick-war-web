@@ -676,6 +676,15 @@ HUD 全部用 **Phaser GameObject** 实现（`Text` + `Graphics` + `setInteracti
 
 **选中方式：** 点击单个单位选中它（再点空白取消），**不做框选**（单轴战场上框选意义不大）。多选留到 M5。
 
+#### 7.3.1 战线指示器（M5b 落定）
+
+抽成 `render/frontline/layout.ts`（纯函数）+ `render/frontline/index.ts`（薄渲染器，与 `hud`/`result` 同形）。分桶是纯算术，正是「肉眼看着对、边界错一位」的东西，**必须有单测**。
+
+- **直方图只统计战斗单位，不统计矿工。** 矿工在基地与矿点之间往返会形成两座**静态凸起**，把「单位分布」的真实信号淹没——矿工不是战线信息。
+- **24 个桶**（世界约 3000px ≈ 每桶 125px）。桶边界按 `floor((x - minX) / bucketWidth)` 计算，越界归入首/末桶。
+- **顶部居中，宽为视口 40%**（原文保留），两端接双方基地血条。
+- **必须扩展 `handleClick` 的点击守卫**：指示器在视口顶部居中，而 `handleClick` 目前的守卫只保留左右各 240px，**顶部中央会被点击穿透**。新增「顶部中央保留区」守卫，防止点指示器误选单位。
+
 ### 7.4 音频
 
 v1 使用 **WebAudio 程序化合成音效**，零素材、零版权风险，与 §8.1 的程序化美术策略一致。
@@ -687,6 +696,14 @@ v1 使用 **WebAudio 程序化合成音效**，零素材、零版权风险，与
 ### 7.5 国际化
 
 `src/i18n/zh-CN.ts` 导出键值表，`t(key)` 查表。兵种数据表中存 `nameKey` 而非显示名。v1 只有中文，将来加英文只需补一份 JSON。
+
+#### 7.5.1 locale 概念（M5b 落定）
+
+- 新增 `LOCALES` 注册表（id → 文案表）与 `setLocale(id)`。当前只登记 `zh-CN`，但**切换机制真实存在**，未来加英文只补一份表。
+- **顺带修一个既有缺陷**：姿态按钮的 `label0` 在构造时缓存、`sync` 不刷新，语言切换不会反映到姿态按钮。改为每次 `sync` 重取。
+- **补齐缺失键** `level.endless.name`（无尽模式结算浮层目前会显示裸键名）。
+- 新增键：`ui.wave`（HUD 波次）、`result.best`（结算最高波次）。
+- **不写英文文案**（见 §13.8 Q7），**不做设置 UI**（语言切换是机制，不是界面）。
 
 ---
 
@@ -959,7 +976,25 @@ function runScenario(scenario: Scenario, seed: number, maxTicks: number): Scenar
 
 **必须带版本号字段**（如 `stickWarSave.v1`），以便将来迁移。成本极低的未来保险。
 
-不做云端账号（需要后端，对单人小游戏是重大架构负担）；不做「不持久化」（每次刷新丢进度不可接受）。
+#### 10.1.1 存档 schema（M5b 落定）
+
+单一键 `stick-war-web:save`，值为 JSON：
+
+```json
+{
+  "version": 1,
+  "furthestLevel": 0,
+  "endlessBestWave": 0,
+  "speedPreference": 1
+}
+```
+
+- `furthestLevel`：**最远到达的关卡下标**（即解锁进度 = 最远解锁），**仅在**玩家**赢**时推进（输了不推进）。
+- `endlessBestWave`：历史最高波次（无尽模式第 N 波失败时取 `max`）。
+- `speedPreference`：`1|2|4`，开新一局时作为初始速度。
+- **读取必须容错**：键不存在 / JSON 损坏 / `version` 不符 → 静默回落默认值，**不崩溃**（try/catch 包整个读路径）。
+- **写入**用 try/catch（隐私模式下 `localStorage` 可能抛异常）。
+- **不存进行中的对局**（刷新即重开当前关，原文保留）；「恢复」= 从 `furthestLevel` 关卡重新开始。
 
 ### 10.2 部署
 
@@ -1044,9 +1079,13 @@ function runScenario(scenario: Scenario, seed: number, maxTicks: number): Scenar
 
 **M5a 验收：** ①第 N 波**确实生成**（波号、构成、预算可断言）②首次战败落在**实测区间**内（从扫描反推，不沿用 spec 的 12~15）③确定性可复现（同种子同哈希）④全量测试 + tsc + lint 全绿。
 
-**M5b 内容：** 战线指示器（Phaser-free 布局 + 薄渲染器）、程序化音效（6 种，WebAudio，首次输入解锁，暂停/结算时不播）、localStorage（带版本号，读取容错）、i18n 加 locale 概念（不写英文文案）、无尽模式的 HUD/结算适配、GitHub Pages 部署。
+**M5b 内容：** 战线指示器（Phaser-free 布局 + 薄渲染器，只统计战斗单位、24 桶）、localStorage（单一键 `stick-war-web:save`，带版本号，读取容错）、i18n 加 locale 概念（不写英文文案）、无尽模式的 HUD/结算适配、修姿态按钮 `label0` 缓存缺陷。
 
-**M5b 验收：** ①战线指示器在窗口缩放与相机滚动下位置正确 ②音效在首次输入前不创建 `AudioContext`，暂停与结算时静默 ③localStorage 损坏时**静默回落**不崩溃 ④肉眼确认四项表现层功能 ⑤**部署**：有 remote 才验；无 remote 则**如实记为「未做」**，不假装完成。
+**M5c 内容（M5b 拆出，需外部条件）：** 程序化音效（6 种，WebAudio，首次输入解锁，暂停/结算时不播，渲染层状态差分驱动）、GitHub Pages 部署（需用户提供 git remote，否则**如实记为「未做」**）。
+
+**M5b 验收：** ①战线指示器分桶纯算术单测通过，窗口缩放与相机滚动下位置正确 ②顶部中央点击守卫（指示器不被点击穿透）③localStorage 损坏时**静默回落**不崩溃 ④无尽模式 HUD 显示当前波次、结算显示「撑到第 N 波 + 历史最高」⑤`level.endless.name` 键补齐、姿态按钮 `label0` 随语言刷新 ⑥全量测试 + tsc + lint 全绿。
+
+**M5c 验收：** ①音效在首次输入前不创建 `AudioContext`，暂停与结算时静默 ②**部署**：有 remote 才验；无 remote 则**如实记为「未做」**，不假装完成。
 
 **风险前置理由：** M1~M3 是「技术风险」，M4~M5 是「内容与打磨」。把风险前置，能在第三天就知道这套架构是否撑得住。
 
@@ -1287,3 +1326,24 @@ function runScenario(scenario: Scenario, seed: number, maxTicks: number): Scenar
 | Q18 | 实测发现：种子是惰性的 | `rngState` **从未被任何 system 消费**，所以所有关卡对种子逐字节相同。无尽波次生成本可成为第一个消费者，但决定不用（见 Q11） |
 | Q19 | 实测发现：峰值单位数 | 关卡 1 峰值 **23**、无尽代理峰值 **25**。**120 从未被接近** —— 它是「双方人口上限 60+60」的理论上限，不是任何实测负载。S3 因此重写（见 Q12） |
 | Q20 | spec 陈旧内容清理 | 发现 §15「未启用字段登记表」与 M4b 的 §14 修订**从未真正落盘**（M4b 的编辑丢失），本次补上；S6 的 5~8 分钟与 §8.4.3 的 243~252 秒也一并修正为实测值 |
+
+### 13.9 M5b 决策记录（2026-10-12，表现层与基础设施）
+
+> M5b 只含**可 headless 客观验收**的部分；音效与部署拆到 **M5c**（需外部条件/肉眼验收）。全部「按推荐」确认。
+
+| Q | 主题 | 决定 |
+|---|---|---|
+| Q1 | M5b/M5c 拆分 | **M5b** = 战线指示器 + 无尽适配 + i18n locale + localStorage（均可 headless 验收）；**M5c** = 音效 + 部署（音效需首次输入/暂停等交互验证，部署依赖用户 git remote） |
+| Q2 | 音效驱动方式（M5c 落定） | 用**渲染层状态差分**（对比上一帧 sim 状态决定播什么），**不**在 sim 里加事件列表——加事件会进 `hashWorld`，徒增确定性风险。先例：`syncStickmen` 的 id 差分驱动死亡残影 |
+| Q3 | 战线指示器结构 | `render/frontline/{layout.ts,index.ts}`（纯函数 + 薄渲染器，与 hud/result 同形）。**同时必须扩展 `handleClick` 守卫**：当前只保留左右各 240px，顶部中央会被点击穿透 |
+| Q4 | 存档恢复语义 | 「恢复」= 从**最远到达关卡**重新开始（进度 = 最远解锁）；**不存进行中对局**；无尽最高波次存同一份存档 |
+| Q5 | i18n 最小范围 | 加 `LOCALES` 注册表 + `setLocale()`；**修**姿态按钮 `label0` 缓存缺陷（`sync` 不刷新）；**补** `level.endless.name`；**不写英文**；不做设置 UI |
+| Q6 | 部署（M5c） | 需用户提供 git remote；没有就**如实记为「未做」**，不假装完成；`deploy.yml` 可选 |
+| Q7 | 性能验收 | FPS 追加到既有 tick 标签，**仅 dev 显示**（`import.meta.env.DEV`）；验收用外部 Playwright 实测 |
+| Q8 | 直方图口径 | **只统计战斗单位**（矿工会在基地/矿点形成静态凸起，淹没有意义信号），**24 桶**（约 125px/桶） |
+| Q9 | 无尽显示 | HUD 仅在无尽关卡显示**当前波次**（`waveIndex`）；结算副标题追加「无尽模式 · 用时 · 波次 N · 最高 M」；「下一关」按钮无需改（无尽是 `LEVELS` 末项 → 「返回第一关」）；新增键 `ui.wave` / `result.best` |
+| Q10 | 存档 schema | 单一键 `stick-war-web:save` = `{version:1, furthestLevel, endlessBestWave, speedPreference}`；**读取容错**（损坏/版本不符静默回落）+ try/catch 写入；`speedPreference` 存偏好；`furthestLevel` **仅在赢时推进** |
+| Q11 | FPS 显示 | 仅在 `import.meta.env.DEV` 下显示（生产不显示） |
+| Q12 | i18n 最终清单 | `LOCALES` + `setLocale`；修 `label0` 缓存；补 `level.endless.name`；加 `ui.wave` / `result.best`；**加测试**覆盖所有 `LEVELS` 关卡 id 的 `level.*.name` 键存在 + locale 切换测试 |
+
+> 确定性注意：本批次改动全部落在 `render/`、`i18n/`、`input/` 与 localStorage，**不触碰 `src/sim/`**，故无 `hashWorld` 风险。音效（M5c）若走渲染层差分同样不入 sim。
