@@ -19,6 +19,12 @@ import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
 import { attackPhase } from '../stickman/poses';
+import {
+  createAudioManager,
+  shouldCreateContext,
+  type AudioUnlockEvent,
+} from '../sound/sfx';
+import { diffSfx, snapshotWorld, type SfxSnapshot } from '../sound/detect';
 
 /** Ground sits this fraction down the viewport, leaving the lower third empty (spec §7.2). */
 const GROUND_FRACTION = 2 / 3;
@@ -66,6 +72,22 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
   private config: MatchConfig = LEVELS[0];
   private seed = CAMPAIGN_SEED;
   private levelIndex = 0;
+
+  /**
+   * M5c SFX (spec §7.4). The `AudioContext` is created lazily on the FIRST
+   * key/pointer input (Q4), so this array records the input stream and the
+   * pure `shouldCreateContext` decides when to unlock. The `prev` snapshot is
+   * captured at the END of each tick, before `advanceWorld` mutates the world
+   * in place — `diffSfx(prev, cur)` is then the set of sounds that played
+   * this tick. `per-tick cap` and the `muted` gate are both in the detector
+   * / pure-decision helpers, never here.
+   */
+  private audio = createAudioManager();
+  private readonly sfxUnlockEvents: AudioUnlockEvent[] = [];
+  private sfxUnlocked = false;
+  /** Previous-tick world snapshot for `diffSfx`. Set in create() to the
+   *  initial world so the first tick can be diffed. */
+  private sfxPrev: SfxSnapshot | null = null;
 
   /**
    * Named so it can be detached on shutdown.
@@ -119,6 +141,14 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.lastTypeId.clear();
     this.lastFacing.clear();
 
+    // M5c: reset SFX state for the new match. The AudioContext itself persists
+    // across restarts (re-creating it per match would be wasteful and could
+    // lose the unlocked state); only the per-match diff window resets.
+    this.sfxUnlockEvents.length = 0;
+    this.sfxUnlocked = false;
+    this.sfxPrev = snapshotWorld(this.world);
+    this.audio.setMuted(false);
+
     this.groundLine = this.add.graphics();
     this.projectiles = createProjectileLayer(this);
     this.selectedMarker = this.add.graphics().setDepth(6);
@@ -138,7 +168,6 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     // Highlight the initial speed so the buttons do not all look inactive on load.
     this.hud.setSpeed(this.speed);
     this.hud.setPaused(this.paused);
-
     this.result = createResultOverlay(this, {
       onReplay: () => this.replay(),
       onNextLevel: () => this.goToNextLevel(),
@@ -164,6 +193,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       this.hud.destroy();
       this.result.destroy();
       this.frontline.destroy();
+      this.audio.destroy();
     });
 
     // R replays the CURRENT level. A bare `restart()` would drop the level and
@@ -196,6 +226,11 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
         // pause and holding R restarts every repeat.
         if (e.repeat) return;
 
+        // M5c Q4: the first real input unlocks audio. We record the event; the
+        // pure `shouldCreateContext` is checked every frame so the very first
+        // tick after this input creates the context exactly once.
+        this.sfxUnlockEvents.push({ type: 'keydown' });
+
         this.keys.update(e.code, true);
         // Stance hotkeys act on the SELECTION; with nothing selected they fall
         // back to the whole army, which is what the Q/W/E muscle memory wants.
@@ -212,7 +247,11 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     // Registered via a named handler so SHUTDOWN can detach it; see the field.
     this.game.events.on(Phaser.Core.Events.BLUR, this.onWindowBlur);
 
-    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => this.handleClick(p));
+    this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      // M5c Q4: a pointer press is also a first-input unlock.
+      this.sfxUnlockEvents.push({ type: 'pointerdown' });
+      this.handleClick(p);
+    });
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       const cam = this.cameras.main;
       cam.setZoom(clampZoom(cam.zoom - dy * 0.001));
@@ -344,6 +383,30 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
         ? 0
         : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
     this.elapsedTicks += ticks;
+
+    // M5c: unlock audio on first real input (Q4). Checked every frame so the
+    // very first tick after a key/pointer press creates the context exactly
+    // once; `shouldCreateContext` is the pure decision.
+    if (!this.sfxUnlocked && shouldCreateContext(this.sfxUnlockEvents)) {
+      this.sfxUnlocked = true;
+      this.audio.unlock();
+    }
+
+    // M5c Q5: pause/result are silent. The `setMuted` gate suspends the
+    // context AND empties the event list, so an in-flight tail freezes and
+    // no new event can ring.
+    this.audio.setMuted(this.paused || decided);
+
+    // M5c: diff the previous-tick snapshot against the current world state
+    // and play the events. `diffSfx` already applies the per-tick cap and
+    // priority truncation. We only diff when a tick actually ran (a paused
+    // or decided frame would diff a stale cur against cur and no-op, but we
+    // skip the work entirely).
+    if (ticks > 0 && this.sfxPrev !== null) {
+      const cur = snapshotWorld(this.world);
+      this.audio.play(diffSfx(this.sfxPrev, cur));
+      this.sfxPrev = cur;
+    }
 
     // Once the match is decided, record the result exactly once (spec §10.1.1).
     if (decided && !this.resultRecorded) {
