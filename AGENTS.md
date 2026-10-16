@@ -91,7 +91,33 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M4b 关卡、胜负条件与结算界面**（已合并，**653 tests**）
 - [x] **M5a 无尽模式**（**已直接提交至 `master`**，685 tests）
 - [x] **M5b 表现层与基础设施**（战线指示器 / i18n locale / localStorage / 无尽 HUD 适配 / dev FPS，**738 tests**）
-- [ ] **M5c 音效与部署**（需外部条件：音效的状态差分细节、部署需用户提供 git remote）
+- [x] **M5c 音效与部署**（**已直接提交至 `master`**，**779 tests**；部署记「未做（工件已就绪，无 remote）」）
+
+## M5c 已交付
+
+程序化音效与 GitHub Pages 部署工件。音频全部落在 `render/sound/`，不碰 `sim/`（→ 零 `hashWorld` 风险，关卡 1 指纹 / 关卡 2 276s / `counter-relations` 全绿）。部署只写了 `.github/workflows/deploy.yml`，**不 push**（无 remote，spec §11 原话「如实记为未做」）。
+
+- `render/sound/detect.ts`（新）— `snapshotWorld(world)`、`diffSfx(prev, cur)`、`SFX_PER_TICK_CAP=8`、`PRIORITY=['hit','swing','death','base','training','gold']`。纯函数，29 测试钉死。
+- `render/sound/recipes.ts`（新）— 6 种 WebAudio 音色配方（hit / swing / death / base / training / gold），base 是唯一用 LFO 的。
+- `render/sound/sfx.ts`（新）— 薄渲染器 `AudioManager`：`unlock()` 惰性建 `AudioContext`、`setMuted()` 暂停/结算冻结、`play(events)` 按事件表发声。两个纯判定 `shouldCreateContext` 与 `mutedEventGate` 已测试。
+- `render/scenes/BattleScene.ts` — 接线：首次 `keydown`/`pointerdown` 解锁；`paused || decided` 时 `setMuted(true)`；每 tick 边界 `diffSfx(prev, cur)` → `play(events)`（`ticks > 0` 才跑，批处理无关）；`prev` 快照在 tick 前捕获（sim 原地推进，否则 `prev === cur` 永远无差分）。
+- `.github/workflows/deploy.yml`（新）— 官方工件流：`push: master` → `npm ci` → `tsc` → `eslint` → `vite build` → `actions/upload-pages-artifact` → `actions/deploy-pages`。**未 push、未验证**（无 remote）。
+
+### M5c 的关键设计（容易忘的）
+
+- **音效不入 sim。** 检测器读的是**渲染层快照**（`id` / `state` / `windupTicksLeft` / `typeId` / `gold` / `bases.hp` / `nextUnitId` / `projectiles.ticksToImpact` / `trainingQueueLen`），不是 sim 事件列表——加事件会进 `hashWorld`，徒增确定性风险（spec §13 Q2）。
+- **`prev` 是「上一 tick 结束时的深拷贝快照」。** sim 是原地推进（非拷贝），所以 `prev` 必须**在 `advanceWorld` 之前**捕获；若 `prev === cur` 引用同一对象，差分永远为空。`snapshotWorld` 是纯函数，字段级浅拷贝（值是原语/小对象，无需深拷贝）。
+- **批处理无关（Q1）。** 1x 与 4x 行为一致：检测器只在「tick 边界」调用一次（随 `advanceWorld` 之后），不在每帧调用。`ticks === 0`（暂停 / 结算）时**跳过差分**，不跑检测器。
+- **上限 8 + 固定优先级（Q2/Q10）。** 密集交战时事件表按 `hit > swing > death > base > training > gold` 稳定排序后截断到 8，**低优先级先丢**；「给 12 个事件 → 断言保留哪 8 个」是 `detect.test.ts` 钉死的客观行为。
+- **首次输入才建 `AudioContext`（Q4）。** `shouldCreateContext` 纯函数检查 `sfxUnlockEvents` 里是否已有 `keydown` 或 `pointerdown`；每帧调用一次，返回 true 时 `unlock()` 恰好一次（幂等）。锁定后不再处理。
+- **暂停 / 结算双保险静默（Q5）。** `setMuted(true)` 同时 `ctx.suspend()`（冻结在发声中的尾巴）+ 事件门控（`mutedEventGate` 返回空表，`play` 不发声）。恢复时 `ctx.resume()`。
+- **近战 hit 与 swing 同 tick 绑定（Q7）。** `windupTicksLeft` 归 0 的 tick 同时出 `swing` + `hit`（出刀即命中）；远程 hit 在箭矢 `ticksToImpact` 归 0 的 tick 单独出。
+- **`diffSfx` 已内置 `truncateByPriority`。** 调用方拿到的是**已截断**的表，`AudioManager.play` 不再做二次截断（避免双重截断）。
+
+## M5c 未做
+
+- **部署未 push、未验证。** 无 `.git` remote（spec §11 原话「没有 remote 就如实记为未做」）。`deploy.yml` 工件已就绪，用户启用 GitHub Pages 后即可用。
+- **音效未在浏览器肉眼验收。** 检测器 / 渲染器逻辑已由 779 tests 钉死；浏览器首次输入解锁 / 暂停静默 / 1x-4x 一致 等肉眼项由用户验收。
 
 ## M5a 已交付
 
