@@ -92,6 +92,39 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M5a 无尽模式**（**已直接提交至 `master`**，685 tests）
 - [x] **M5b 表现层与基础设施**（战线指示器 / i18n locale / localStorage / 无尽 HUD 适配 / dev FPS，**738 tests**）
 - [x] **M5c 音效与部署**（**已直接提交至 `master`**，**779 tests**；部署记「未做（工件已就绪，无 remote）」）
+- [x] **M6.1 关卡 3**（已合并至 `master`，**789 tests**；敌方档案实测 `mt=7/iv=30` → 281s，5 种子全绿）
+- [x] **M6.2 巨人**（已合并至 `master`，**791 tests**；重甲坦克，3 行 counter-relations 实测钉死）
+- [x] **M6.3 法师 + 控制**（已合并至 `master`，**794 tests**；远程眩晕 1s，`Projectile` 新增 `attackerType`）
+
+## M6 已交付
+
+关卡 3、巨人、法师 + 控制技能。M6.1 与 M6.2 全部落在 `data/`、`i18n/`、`sim/`（纯逻辑），未触碰 `sim/` 现有机制；M6.3 给 `Projectile` 新增 `attackerType` 字段并扩展 `applyDamage` 签名，关卡 1 指纹 / 关卡 2 276s / `counter-relations` 全绿。
+
+- `data/levels.ts` — `LEVEL_3`（levelId `level-3`，对称经济关，`winCondition: 'base'`，`enemyProfile: 'level-3'`）；`LEVELS = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_ENDLESS]`
+- `sim/ai-profile.ts` — `LEVEL_3_ENEMY = { decisionIntervalTicks: 30, minerTarget: 7, buildOrder: ['miner', 'swordsman', 'archer'], advanceRatio: 1.0, retreatRatio: 0.4 }`，实测 281s（5 种子全绿）；`AiProfileId` 新增 `'level-3'`
+- `data/units.ts` — `giant`（500hp/12armor/heavy/r22/55speed/60dmg/1.8s cd，金 400，pop 3，15s）；`mage`（60hp/0armor/light/r11/70speed/22dmg/ranged/150range/2.0s cd/0.4s windup/300ps 弹速，金 150，pop 1，10s，`stunOnHitTicks: 30`）；`UnitDef` 新增可选 `stunOnHitTicks?: number`
+- `data/unitTicks.ts` — `UnitTickStats` 新增 `stunOnHit: number`（取自 `def.stunOnHitTicks ?? 0`）；`giant`/`mage` 已登记
+- `sim/types.ts` — `Projectile` 新增 `attackerType: UnitTypeId`（M6.3 才需要；M6.2 未改 `Projectile`）
+- `sim/systems/combat.ts` — `applyDamage(world, attackerSide, target, amount, attackerType?)`：近战传入 `unit.typeId`，远程传入 `p.attackerType`；命中存活目标时若 `UNIT_TICKS[attackerType].stunOnHit > 0` 则设 `victim.stunTicksLeft` + `state='stunned'`；**先判死再挂晕**（击杀不眩晕尸体）
+- `sim/hash.ts` — 弹丸哈希行加入 `p.attackerType`
+- `render/stickman/palette.ts` — `giant`（深棕）、`mage`（灰绿）
+- `i18n/zh-CN.ts` — `unit.giant: '巨人'`、`unit.mage: '法师'`、`level.level-3.name: '第三关'`
+- `sim/harness.ts` — `expandRoster` 顺序 `['archer', 'miner', 'spearman', 'swordsman', 'giant', 'mage']`
+- `sim/level-3-winnable.test.ts`（新）— 5 种子全胜、基地拆除（`baseHp.enemy === 0`）、时长 180–360s、钉死 281s、可败（`'none'` 档案）、确定性
+- `sim/counter-relations.test.ts` — 新增 6 行（巨人 3 行 + 法师 3 行），全部实测钉死，旧行未动
+
+### M6 的关键设计（容易忘的）
+
+- **巨人是坦克，不是碾压者。** 1 巨人 vs 5 剑士 = **死锁**（6000 tick 超时，双方各有残留）；1 巨人 vs 8 弓箭手 = **敌胜**（弓箭手穿透重甲 ~30s 击杀）；1 巨人 vs 4 矛兵 = **敌胜**（heavy bonus 1.6 弥补 armor 12，~42s）。巨人的定位是**需要掩护或数量优势**的前排，不是 1vN 的碾压单位。
+- **法师 1v1 打不过任何近战**（与弓箭手同规则）：mage x1 vs swordsman x2 → 敌胜（513 tick）；mage x1 vs spearman x2 → 敌胜。法师对巨人反而**胜**（mage x1 vs giant x1 → 玩家胜，4055 tick）：巨人 55px/s 太慢，法师 150 射程风筝 74s 刚好 500 伤害击杀。
+- **`stunOnHitTicks` 是 `UnitDef` 上的可选字段，不进 `hashWorld`**（表是静态的）；`stunTicksLeft` 已在 `Unit` 上（v1 预留，`hash.ts` 已覆盖）。M6.3 只是给 `stunTicksLeft` 加了一个**生产者**（法师命中），消费侧（`ai.ts` 第 3 步、`movement.ts` 第 4 步）早已就绪。
+- **`Projectile.attackerType` 进了哈希。** M6.3 把 `attackerType` 加入弹丸哈希行，**关卡 1 / 关卡 2 无弹丸**（剑士/矛兵/弓箭手对撞 + 基地条件），所以回归锚点全绿。若未来关卡引入远程单位，新增的 `attackerType` 字段会改变弹丸哈希，需同步更新 `hash.ts` 的弹丸行（已做）。
+- **M6.2 未改 `Projectile`**：巨人近战，不涉及远程弹丸，`applyDamage` 的 `attackerType` 参数是 M6.3 才加的（M6.2 提交时 `applyDamage` 签名未变）。
+
+## M6 未做
+
+- **关卡 3 浏览器肉眼验收。** 逻辑核心已由 794 tests 钉死（5 种子全胜、281s、可败、确定性）；浏览器「下一关」按钮流转与结算浮层由用户验收。
+- **巨人 / 法师浏览器肉眼验收。** 渲染层配色已登记（`palette.ts`），骨骼朝向复用现有逻辑（`rig.ts` 已测）；浏览器里实际观感由用户验收。
 
 ## M5c 已交付
 
