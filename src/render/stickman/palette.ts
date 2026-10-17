@@ -17,4 +17,5 @@ export const PALETTES: Record<UnitTypeId, Palette> = {
   archer: { limb: 0x3fa05a, head: 0x63c47d, weapon: 0x8a6d1f },
   spearman: { limb: 0xa04f9f, head: 0xc478c3, weapon: 0xd8dde3 },
   giant: { limb: 0x5a2d0c, head: 0x8b4513, weapon: 0xd8dde3 },
+  mage: { limb: 0x4a6741, head: 0x7a9a6e, weapon: 0x2e8b57 },
 };

@@ -86,6 +86,8 @@ export interface Projectile {
    * appearing to attack them.
    */
   target: TargetRef;
+  /** The attacker's unit type — needed so stunOnHit can be applied on impact. */
+  attackerType: UnitTypeId;
   damage: number;
   /** Ticks until the projectile lands and resolves damage. */
   ticksToImpact: number;

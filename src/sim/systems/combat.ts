@@ -13,7 +13,7 @@
  */
 
 import { BASE_ARMOR, BASE_ARMOR_TYPE } from '../../data/constants';
-import { UNITS, type ArmorType } from '../../data/units';
+import { UNITS, type ArmorType, type UnitTypeId } from '../../data/units';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import { computeDamage } from '../damage';
 import { distanceToTarget, isTargetAlive, targetX } from '../targeting';
@@ -62,7 +62,7 @@ function advanceProjectiles(world: World): void {
     }
 
     p.x = targetPos;
-    applyDamage(world, p.side, p.target, p.damage);
+    applyDamage(world, p.side, p.target, p.damage, p.attackerType);
   }
 
   world.projectiles = surviving;
@@ -101,7 +101,7 @@ function releaseStrike(world: World, unit: Unit): void {
   const damage = computeDamage(def.attack, def.bonusVs, armor.value, armor.type);
 
   if (def.attackType === 'melee') {
-    applyDamage(world, unit.side, unit.target, damage);
+    applyDamage(world, unit.side, unit.target, damage, unit.typeId);
   } else {
     spawnProjectile(world, unit, distance, damage);
   }
@@ -125,13 +125,14 @@ function spawnProjectile(world: World, unit: Unit, distance: number, damage: num
     x: unit.x,
     prevX: unit.x,
     target,
+    attackerType: unit.typeId,
     damage,
     ticksToImpact,
   });
 }
 
 /** Applies damage to a unit or a base and records it in the side's stats. */
-function applyDamage(world: World, attacker: Side, target: TargetRef, amount: number): void {
+function applyDamage(world: World, attacker: Side, target: TargetRef, amount: number, attackerType?: UnitTypeId): void {
   if (target === null) return;
 
   if (target.kind === 'base') {
@@ -154,11 +155,21 @@ function applyDamage(world: World, attacker: Side, target: TargetRef, amount: nu
   victim.hp -= applied;
   world.stats[attacker].damageDealt += applied;
 
-  // Mark only — removal belongs to cleanup (two-phase death, spec §6.6).
+  // Two-phase death (spec §6.6): mark only; removal belongs to cleanup.
   if (victim.hp <= 0) {
     victim.state = 'dead';
     victim.target = null;
     victim.windupTicksLeft = 0;
+    return;
+  }
+
+  // M6.3: stun-on-hit. The attacker's def may carry stunOnHitTicks (e.g. mage).
+  // Only applied to a still-alive victim: a killing blow does not stun the corpse.
+  if (attackerType !== undefined && UNIT_TICKS[attackerType].stunOnHit > 0) {
+    victim.stunTicksLeft = UNIT_TICKS[attackerType].stunOnHit;
+    victim.state = 'stunned';
+    victim.stateEnteredTick = world.tick;
+    victim.target = null;
   }
 }
 

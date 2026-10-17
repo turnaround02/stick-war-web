@@ -10,7 +10,7 @@
  * This file imports NOTHING from sim/. Dependency is one-way: sim -> data.
  */
 
-export type UnitTypeId = 'miner' | 'swordsman' | 'archer' | 'spearman' | 'giant';
+export type UnitTypeId = 'miner' | 'swordsman' | 'archer' | 'spearman' | 'giant' | 'mage';
 
 export type ArmorType = 'light' | 'heavy';
 
@@ -43,6 +43,8 @@ export interface UnitDef {
   popCost: number;
   /** seconds. */
   trainTime: number;
+  /** Ticks of stun applied on hit. 0 = no stun. */
+  stunOnHitTicks?: number;
   /** Gold carried per trip. Miners only. */
   carryCapacity: number;
   /** seconds spent mining. Miners only. */
@@ -167,6 +169,28 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     goldCost: 400,
     popCost: 3,
     trainTime: 15,
+    carryCapacity: 0,
+    gatherTime: 0,
+  },
+  mage: {
+    id: 'mage',
+    nameKey: 'unit.mage',
+    maxHp: 60,
+    armor: 0,
+    armorType: 'light',
+    bodyRadius: 11,
+    moveSpeed: 70,
+    attack: 22,
+    attackType: 'ranged',
+    attackRange: 150,
+    attackCooldown: 2.0,
+    windupTime: 0.4,
+    projectileSpeed: 300,
+    bonusVs: {},
+    stunOnHitTicks: 30,
+    goldCost: 150,
+    popCost: 1,
+    trainTime: 10,
     carryCapacity: 0,
     gatherTime: 0,
   },

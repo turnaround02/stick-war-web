@@ -174,6 +174,7 @@ describe('cleanupSystem — outcome', () => {
       x: 10,
       prevX: 10,
       target: { kind: 'unit', id: 99 },
+      attackerType: 'archer',
       damage: 1,
       ticksToImpact: 0,
     });

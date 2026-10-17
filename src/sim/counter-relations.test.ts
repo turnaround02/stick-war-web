@@ -127,6 +127,26 @@ const MATRIX: Matchup[] = [
     expect: 'enemy',
     why: 'M6 实测: 4 个矛兵 ~42s 击杀巨人（heavy bonus 1.6 弥补了 armor 12）',
   },
+  // M6.3 — mage: new rows only, old rows untouched.
+  // Expected values are MEASURED (6-seed unanimous), not speculative.
+  {
+    label: 'mage x1 vs swordsman x2',
+    scenario: sc({ mage: 1 }, { swordsman: 2 }),
+    expect: 'enemy',
+    why: 'M6: 法师 1v1 打不过任何近战（与弓箭手同规则），2 个剑士足以击落',
+  },
+  {
+    label: 'mage x1 vs spearman x2',
+    scenario: sc({ mage: 1 }, { spearman: 2 }),
+    expect: 'enemy',
+    why: 'M6: 法师 1v1 打不过矛兵',
+  },
+  {
+    label: 'mage x1 vs giant x1',
+    scenario: sc({ mage: 1 }, { giant: 1 }),
+    expect: 'player',
+    why: 'M6 实测: 巨人移动速度 55px/s 太慢，法师射程 150 持续输出 74s 刚好 500 伤害击杀巨人，巨人追击途中被风筝',
+  },
 ];
 
 /** The control case for the R1/R2 damage ratio: the SAME six archers, no screen. */

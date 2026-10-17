@@ -77,6 +77,7 @@ describe('hashWorld', () => {
       x: 10,
       prevX: 10,
       target: { kind: 'unit', id: 0 },
+      attackerType: 'archer',
       damage: 1,
       ticksToImpact: 3,
     });

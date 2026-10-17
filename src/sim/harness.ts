@@ -151,7 +151,7 @@ export function runMatch(
  * scenario measure the opposite of what it claims.
  */
 function expandRoster(roster: Partial<Record<UnitTypeId, number>>): UnitTypeId[] {
-  const order: UnitTypeId[] = ['archer', 'miner', 'spearman', 'swordsman', 'giant'];
+  const order: UnitTypeId[] = ['archer', 'miner', 'spearman', 'swordsman', 'giant', 'mage'];
   const out: UnitTypeId[] = [];
   for (const typeId of order) {
     const count = roster[typeId] ?? 0;

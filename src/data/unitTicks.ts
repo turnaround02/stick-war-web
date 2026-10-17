@@ -26,6 +26,8 @@ export interface UnitTickStats {
   speedPerTick: number;
   /** Projectile travel per tick in px. 0 for non-ranged units. */
   projectilePerTick: number;
+  /** Stun ticks applied on hit. 0 = no stun. */
+  stunOnHit: number;
 }
 
 function derive(id: UnitTypeId): UnitTickStats {
@@ -39,6 +41,7 @@ function derive(id: UnitTypeId): UnitTickStats {
     // as long as the operation order is fixed, which it is.
     speedPerTick: def.moveSpeed / TICKS_PER_SEC,
     projectilePerTick: def.projectileSpeed / TICKS_PER_SEC,
+    stunOnHit: def.stunOnHitTicks ?? 0,
   };
 }
 
@@ -48,4 +51,5 @@ export const UNIT_TICKS: Record<UnitTypeId, UnitTickStats> = {
   archer: derive('archer'),
   spearman: derive('spearman'),
   giant: derive('giant'),
+  mage: derive('mage'),
 };
