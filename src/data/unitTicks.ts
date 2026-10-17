@@ -47,4 +47,5 @@ export const UNIT_TICKS: Record<UnitTypeId, UnitTickStats> = {
   swordsman: derive('swordsman'),
   archer: derive('archer'),
   spearman: derive('spearman'),
+  giant: derive('giant'),
 };

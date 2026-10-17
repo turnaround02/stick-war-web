@@ -10,6 +10,7 @@ export const ZH_CN: Record<string, string> = {
   'unit.swordsman': '剑士',
   'unit.archer': '弓箭手',
   'unit.spearman': '矛兵',
+  'unit.giant': '巨人',
 
   // Resource bar
   'ui.gold': '金币',

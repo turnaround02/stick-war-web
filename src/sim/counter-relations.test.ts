@@ -107,6 +107,26 @@ const MATRIX: Matchup[] = [
     expect: 'player',
     why: '§6.5: 弓箭手有掩护才有输出空间',
   },
+  // M6.2 — giant: new rows only, old rows untouched.
+  // Expected values are MEASURED, not speculative (same methodology as M4b).
+  {
+    label: 'giant x1 vs swordsman x5',
+    scenario: sc({ giant: 1 }, { swordsman: 5 }),
+    expect: null,
+    why: 'M6 实测: 死锁 — 巨人 500HP+12armor 剑士打不穿，剑士数量也不足以绕开巨人，6000 tick 超时',
+  },
+  {
+    label: 'giant x1 vs archer x8',
+    scenario: sc({ giant: 1 }, { archer: 8 }),
+    expect: 'enemy',
+    why: 'M6 实测: 8 个弓箭手无掩护仍能在 ~30s 内击杀巨人（箭矢穿透重甲）',
+  },
+  {
+    label: 'giant x1 vs spearman x4',
+    scenario: sc({ giant: 1 }, { spearman: 4 }),
+    expect: 'enemy',
+    why: 'M6 实测: 4 个矛兵 ~42s 击杀巨人（heavy bonus 1.6 弥补了 armor 12）',
+  },
 ];
 
 /** The control case for the R1/R2 damage ratio: the SAME six archers, no screen. */

@@ -10,7 +10,7 @@
  * This file imports NOTHING from sim/. Dependency is one-way: sim -> data.
  */
 
-export type UnitTypeId = 'miner' | 'swordsman' | 'archer' | 'spearman';
+export type UnitTypeId = 'miner' | 'swordsman' | 'archer' | 'spearman' | 'giant';
 
 export type ArmorType = 'light' | 'heavy';
 
@@ -146,6 +146,27 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     goldCost: 90,
     popCost: 1,
     trainTime: 7,
+    carryCapacity: 0,
+    gatherTime: 0,
+  },
+  giant: {
+    id: 'giant',
+    nameKey: 'unit.giant',
+    maxHp: 500,
+    armor: 12,
+    armorType: 'heavy',
+    bodyRadius: 22,
+    moveSpeed: 55,
+    attack: 60,
+    attackType: 'melee',
+    attackRange: 30,
+    attackCooldown: 1.8,
+    windupTime: 0.5,
+    projectileSpeed: 0,
+    bonusVs: {},
+    goldCost: 400,
+    popCost: 3,
+    trainTime: 15,
     carryCapacity: 0,
     gatherTime: 0,
   },
