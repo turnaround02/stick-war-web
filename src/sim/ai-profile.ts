@@ -104,6 +104,21 @@ export const PLAYER_REFERENCE: AiProfile = {
  * Both were caught only because a test pinned the duration and disagreed with
  * the comment. Do not hand-tune these without re-running the sweep.
  */
+/**
+ * Level-3 enemy profile. Swept on `minerTarget × decisionIntervalTicks`
+ * to target: reference player wins on all 5 seeds, duration 3–6 min.
+ * (Same methodology as LEVEL_2_ENEMY sweep.)
+ *
+ * Measured: mt=7 iv=30 → 281 s on all 5 seeds. Swept 2026-10-17.
+ */
+export const LEVEL_3_ENEMY: AiProfile = {
+  decisionIntervalTicks: 30,
+  minerTarget: 7,
+  buildOrder: ['miner', 'swordsman', 'archer'],
+  advanceRatio: 1.0,
+  retreatRatio: 0.4,
+};
+
 export const LEVEL_2_ENEMY: AiProfile = {
   decisionIntervalTicks: 30,
   minerTarget: 8,
@@ -131,6 +146,7 @@ export const AI_PROFILES: Record<AiProfileId, AiProfile | null> = {
   none: null,
   standard: ENEMY_STANDARD,
   'level-2': LEVEL_2_ENEMY,
+  'level-3': LEVEL_3_ENEMY,
 };
 
 /** The profile for an id, or null when that id means "no tactical layer". */

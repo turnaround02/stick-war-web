@@ -89,6 +89,28 @@ export const MINE_X = { player: PLAYER_MINE_X, enemy: ENEMY_MINE_X } as const;
  * The enemy base is 1500, matching level 1's: at 3000 the breakthrough is
  * followed by ~43s of unopposed base-chewing, and halving it cuts that to ~22s.
  */
+/**
+ * Level 3 — a campaign level 2 with a more aggressive enemy profile.
+ *
+ * Symmetric economy, `winCondition: 'base'` (must destroy the enemy base).
+ * The enemy profile is swept to target 3–6 minute duration with reference
+ * player winning on all 5 seeds (same methodology as the level-2 sweep).
+ */
+export const LEVEL_3: MatchConfig = {
+  levelId: 'level-3',
+  worldWidth: 3000,
+  baseHp: { player: 3000, enemy: 3000 },
+  mineGold: { player: 6000, enemy: 6000 },
+  startGold: { player: 200, enemy: 200 },
+  startMiners: { player: 3, enemy: 3 },
+  popCap: { player: 8, enemy: 8 },
+  enemyAi: 'economy',
+  enemyProfile: 'level-3',
+  waves: [],
+  endless: false,
+  winCondition: 'base',
+};
+
 export const LEVEL_2: MatchConfig = {
   ...DEFAULT_MATCH,
   levelId: 'level-2',
@@ -132,7 +154,7 @@ export const LEVEL_ENDLESS: MatchConfig = {
  * The ARRAY ORDER is the level order. There is deliberately no `order` field on
  * MatchConfig — two sources of truth for the same fact is one too many.
  */
-export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_ENDLESS];
+export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_ENDLESS];
 
 /**
  * Index of the LAST campaign (winnable) level.

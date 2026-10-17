@@ -47,5 +47,6 @@ export const ZH_CN: Record<string, string> = {
   // Level names — keys follow `level.<levelId>.name`.
   'level.level-1.name': '第一关',
   'level.level-2.name': '第二关',
+  'level.level-3.name': '第三关',
   'level.endless.name': '无尽模式',
 };

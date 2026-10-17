@@ -40,7 +40,7 @@ export interface WaveScript {
  * level (no enemy economy to spend) and for the balance harness (which measures
  * pure unit matchups).
  */
-export type AiProfileId = 'none' | 'standard' | 'level-2';
+export type AiProfileId = 'none' | 'standard' | 'level-2' | 'level-3';
 
 /** Everything needed to build a World. Consumed once by createWorld. */
 export interface MatchConfig {

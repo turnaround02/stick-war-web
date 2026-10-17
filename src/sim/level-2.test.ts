@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LEVEL_1, LEVEL_2, LEVELS } from '../data/levels';
+import { LEVEL_1, LEVEL_2, LEVEL_3, LEVELS } from '../data/levels';
 import { createWorld } from './createWorld';
 import { step } from './tick';
 
@@ -40,10 +40,10 @@ describe('LEVEL_2 — shape (spec §8.4.3)', () => {
 
 describe('LEVELS registry', () => {
   it('lists the campaign levels in play order', () => {
-    // Level 1, level 2, then endless. Endless is last on purpose: it is entered
+    // Level 1, level 2, level 3, then endless. Endless is last on purpose: it is entered
     // from level 2's result screen and has no "next level" of its own.
-    expect(LEVELS.slice(0, 2)).toEqual([LEVEL_1, LEVEL_2]);
-    expect(LEVELS).toHaveLength(3);
+    expect(LEVELS.slice(0, 3)).toEqual([LEVEL_1, LEVEL_2, LEVEL_3]);
+    expect(LEVELS).toHaveLength(4);
   });
 
   it('has unique level ids', () => {
