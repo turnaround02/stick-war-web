@@ -29,8 +29,8 @@ export interface HudMetrics {
   barHeight: number;
 }
 
-/** The four trainable types, in button order. */
-export const TRAINABLE: readonly UnitTypeId[] = ['miner', 'swordsman', 'archer', 'spearman'];
+/** The six trainable types, in button order. */
+export const TRAINABLE: readonly UnitTypeId[] = ['miner', 'swordsman', 'archer', 'spearman', 'giant', 'mage'];
 
 /** The three army-wide stance orders, in button order. */
 export const STANCE_BUTTONS: readonly { stance: Stance; key: string }[] = [

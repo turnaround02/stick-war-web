@@ -128,7 +128,7 @@ describe('trainButtonState', () => {
 describe('layoutTrainButtons', () => {
   it('lays out one button per trainable type', () => {
     const rects = layoutTrainButtons(1280, 720, metrics);
-    expect(rects).toHaveLength(4);
+    expect(rects).toHaveLength(6);
   });
 
   it('keeps every button inside the viewport', () => {

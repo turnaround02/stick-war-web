@@ -95,6 +95,21 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M6.1 关卡 3**（已合并至 `master`，**789 tests**；敌方档案实测 `mt=7/iv=30` → 281s，5 种子全绿）
 - [x] **M6.2 巨人**（已合并至 `master`，**791 tests**；重甲坦克，3 行 counter-relations 实测钉死）
 - [x] **M6.3 法师 + 控制**（已合并至 `master`，**794 tests**；远程眩晕 1s，`Projectile` 新增 `attackerType`）
+- [x] **M6.4 巨人/法师 UI 接线**（已合并至 `master`，**794 tests**；`TRAINABLE` 4→6，敌方 buildOrder 实测无操作已回退）
+
+## M6.4 已交付
+
+巨人/法师从「测试里的单位」变成「游戏里能造的单位」。纯加法，零 sim 机制改动，全部在 `render/` 内完成。
+
+- `render/hud/layout.ts` — `TRAINABLE` 从 4 项扩到 6 项（miner/swordsman/archer/spearman/giant/mage），HUD 训练按钮行随之从 4 个变 6 个（+3 姿态 = 9 按钮，1280 视口下 1036px，余量 244px）
+- `render/hud/layout.test.ts` — 按钮数断言 4→6（按数量驱动，自动适配；布局测试 35 项全绿）
+- **敌方 buildOrder 实测翻案，未改动**：见下
+
+### M6.4 的关键设计（容易忘的）
+
+- **「扫出来的值不变 ≠ 改动生效」。** 把 giant+mage 加进 level-3 档案 buildOrder 后重扫 `minerTarget × decisionIntervalTicks`（5 种子，同 M4b 方法论），结果 281s 锚点**纹丝不动**、其余格全 400s 超时判负。单发脚本（用完即删）验证根因：关卡 3 敌方**峰值金币只有 280**（整局 281s，矿工被玩家推进军队不断击杀，经济被压制），巨人 400 金**永远买不起**；法师 150 金虽买得起，但 `nextBuildType` 选「拥有数最少」，giant(0)/mage(0)/archer(0) 并列时 archer 先中 → **法师被影子化**。最终敌方 281s 只造出 13 矿工 + 1 剑士，**0 巨人 0 法师**。改 buildOrder 是「空操作」，已回退 `ai-profile.ts`，不留误导注释。
+- **Q3′ 决定 = A（仅玩家可造巨人/法师）**。敌方不用新单位是关卡 3 经济结构的自然结果，不是缺陷。若日后想「敌方也会用巨人」，是独立关卡设计任务（强化敌方经济 + 重扫档案 + 重钉锚点），不是 UI 修复的范围。
+- **`nextBuildType` 的「买不起就整 tick 不造兵」是已知机制缺口**（无回退到次选）。当前所有档案的 buildOrder 都是 4 旧兵种，该缺口从未触发；一旦 buildOrder 含昂贵单位（如巨人 400 金），缺口会变成「经济被卡死」。若要修复需重扫全部关卡锚点（最高风险），本轮不动。
 
 ## M6 已交付
 
@@ -125,6 +140,8 @@ npm run lint     # ESLint（含 sim 边界检查）
 
 - **关卡 3 浏览器肉眼验收。** 逻辑核心已由 794 tests 钉死（5 种子全胜、281s、可败、确定性）；浏览器「下一关」按钮流转与结算浮层由用户验收。
 - **巨人 / 法师浏览器肉眼验收。** 渲染层配色已登记（`palette.ts`），骨骼朝向复用现有逻辑（`rig.ts` 已测）；浏览器里实际观感由用户验收。
+- **敌方用巨人/法师（M6.4 Q3′=A 留下的已知缺口）。** 关卡 3 敌方峰值金币仅 280，造不出 400 金巨人；`nextBuildType` 无「买不起就回退次选」逻辑。若日后要敌方也造新单位：①强化 LEVEL_3 经济（`startGold`/`mineGold`/`popCap`）使峰值 ≥400；②重扫 level-3 档案 + 重钉 281s 锚点；③视情况补 `nextBuildType` 回退逻辑。本轮 M6.4 已实测确认 buildOrder 改动是空操作并回退，**未实现**。
+- **眩晕视觉反馈（M6.4 Q5=A 留下的可选项）。** 被眩晕单位站着不动 1s 本身可读，未加眩晕圈/音效。若日后要做：读 `unit.stunTicksLeft`（渲染层只读 sim，合规）画脚下圈，需配 `render/` 测试（iron rule #7）；或走 M5c `render/sound/` 管线加 `stun` 事件。
 
 ## M5c 已交付
 
