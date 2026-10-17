@@ -17,7 +17,7 @@ import { Selection, selectedIdsOf } from '../selection';
 import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
-import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from '../stickman/skeleton';
+import { createStickman, stickmanHipHeight, type Stickman } from '../stickman/skeleton';
 import { attackPhase } from '../stickman/poses';
 import {
   createAudioManager,
@@ -544,7 +544,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       }
 
       const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
-      stickman.container.setPosition(x, this.groundY - STICKMAN_HIP_HEIGHT);
+      stickman.container.setPosition(x, this.groundY - stickmanHipHeight(unit.typeId));
       stickman.setFacing(unit.side === 'player' ? 1 : -1);
       stickman.apply(unit.state, this.phaseOf(unit));
     }

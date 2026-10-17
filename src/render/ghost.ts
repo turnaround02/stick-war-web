@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { createStickman, STICKMAN_HIP_HEIGHT, type Stickman } from './stickman/skeleton';
+import { createStickman, stickmanHipHeight, type Stickman } from './stickman/skeleton';
 import type { UnitTypeId } from '../data/units';
 
 /** How long the death animation plays, in ms. */
@@ -26,7 +26,7 @@ export function spawnGhost(
 ): void {
   const stickman: Stickman = createStickman(scene, typeId);
   stickman.setFacing(facing);
-  stickman.container.setPosition(x, groundY - STICKMAN_HIP_HEIGHT);
+  stickman.container.setPosition(x, groundY - stickmanHipHeight(typeId));
   stickman.container.setDepth(-1);
   stickman.apply('dead', 0);
 

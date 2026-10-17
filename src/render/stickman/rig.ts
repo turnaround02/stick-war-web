@@ -1,3 +1,5 @@
+import type { UnitTypeId } from '../../data/units';
+
 /**
  * The stickman rig's orientation conventions, kept free of Phaser.
  *
@@ -91,4 +93,72 @@ export function limbDirection(kind: LimbKind, angle: number): Vec2 {
     x: rest.x * cos - rest.y * sin,
     y: rest.x * sin + rest.y * cos,
   };
+}
+
+/**
+ * Per-type visual scale.
+ *
+ * The giant is drawn at 1.5× the standard rig so that at 0.6× camera zoom
+ * (the global-view default) it still reads as "big and strong" at a glance.
+ * All other types keep 1.0.
+ *
+ * This is a RENDER-ONLY channel: it does not touch `bodyRadius` or any sim
+ * field. The giant's sim collision is already `bodyRadius: 22` (≈44px lane);
+ * the visual 1.5× makes the drawn head ≈21px wide at 1.0× camera, which at
+ * 0.6× screen is ≈13px — visible but not absurd.
+ */
+export const VISUAL_SCALE: Record<UnitTypeId, number> = {
+  miner: 1.0,
+  swordsman: 1.0,
+  archer: 1.0,
+  spearman: 1.0,
+  giant: 1.5,
+  mage: 1.0,
+};
+
+/**
+ * Weapon geometry per type. The default is the standard sword (16×3).
+ * The giant gets a hammer: longer shaft + a chunky head block.
+ */
+export interface WeaponSpec {
+  /** Shaft length in px (the stick part). */
+  shaftLength: number;
+  /** Shaft thickness in px. */
+  shaftThickness: number;
+  /** Head block size. `0` means no head (standard sword). */
+  headWidth: number;
+  headHeight: number;
+}
+
+/** Shared default weapon: a plain sword. */
+export const DEFAULT_WEAPON: WeaponSpec = {
+  shaftLength: 16,
+  shaftThickness: 3,
+  headWidth: 0,
+  headHeight: 0,
+};
+
+export const WEAPON: Record<UnitTypeId, WeaponSpec> = {
+  miner: DEFAULT_WEAPON,
+  swordsman: DEFAULT_WEAPON,
+  archer: DEFAULT_WEAPON,
+  spearman: DEFAULT_WEAPON,
+  giant: {
+    shaftLength: 14,
+    shaftThickness: 4,
+    headWidth: 10,
+    headHeight: 14,
+  },
+  mage: DEFAULT_WEAPON,
+};
+
+/**
+ * The hip-to-foot drop for a unit at its visual scale.
+ *
+ * `LEG_LENGTH * scale` keeps the feet on the ground line for every size.
+ * This is what `STICKMAN_HIP_HEIGHT` must be replaced with at the call site
+ * (it was a global constant assuming scale=1).
+ */
+export function hipHeightFor(scale: number): number {
+  return LEG_LENGTH * scale;
 }

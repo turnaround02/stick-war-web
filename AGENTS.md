@@ -105,6 +105,22 @@ npm run lint     # ESLint（含 sim 边界检查）
 - `render/hud/layout.test.ts` — 按钮数断言 4→6（按数量驱动，自动适配；布局测试 35 项全绿）
 - **敌方 buildOrder 实测翻案，未改动**：见下
 
+## M6.5 已交付（巨人视觉）
+
+巨人从「换个颜色的火柴人」变成「一眼很厉害」：整体缩放 1.5× + 专属巨锤。纯渲染层，零 sim 改动。
+
+- `render/stickman/rig.ts` — 新增 `VISUAL_SCALE`（giant=1.5，其余=1.0）、`WEAPON: Record<UnitTypeId, WeaponSpec>`（giant 带锤头，其余共用 `DEFAULT_WEAPON`）、`hipHeightFor(scale)`。全部 Phaser-free，配 5 条新测试（共 799 tests）。
+- `render/stickman/skeleton.ts` — `createStickman` 按 typeId 取 scale/weapon；容器初始 `setScale(s,s)`；`setFacing` 改为 `setScale(dir*s, s)`（保持缩放）；武器 shaft+可选 head 两块；`stickmanHipHeight(typeId)` 取代全局 `STICKMAN_HIP_HEIGHT` 的调用。
+- `render/ghost.ts` / `render/scenes/BattleScene.ts` — 改用 `stickmanHipHeight(typeId)` 定位。
+- **spec §12 风险 #7 修订**：区分通道从「配色 + 武器形状」升级为「配色 + 武器形状 + 体型」，记录 M6.5 修订。
+
+### M6.5 的关键设计（容易忘的）
+
+- **体型是渲染层专属通道。** 不动 sim `bodyRadius`（giant 仍 22）、不动 `separation`、不动 `counter-relations` 锚点。视觉 1.5× 使巨人 1.0× 相机下头宽 ≈21px，0.6× 屏 ≈13px——可辨识但不夸张。
+- **`setFacing` 必须携带缩放。** 原实现 `container.setScale(dir, 1)` 会把 Y 缩放清零；改为 `dir*scale` 后朝向翻转与体型缩放共存。
+- **`STICKMAN_HIP_HEIGHT` 是 scale=1 的全局值，已废弃**（仍导出以保兼容）。新代码用 `stickmanHipHeight(typeId)` = `hipHeightFor(VISUAL_SCALE[typeId])` = `LEG_LENGTH × scale`。若忘记，巨人 1.5× 时脚会踩到地线下 9px。
+- **巨锤 = shaft(14×4) + head(10×14) 两块矩形。** head 在 shaft 端部，两块共用 `pose.weapon` 旋转。非巨人 unit 的 `WEAPON` 指向 `DEFAULT_WEAPON`（16×3 剑），`headWidth=0` 时不建 head 块。
+
 ### M6.4 的关键设计（容易忘的）
 
 - **「扫出来的值不变 ≠ 改动生效」。** 把 giant+mage 加进 level-3 档案 buildOrder 后重扫 `minerTarget × decisionIntervalTicks`（5 种子，同 M4b 方法论），结果 281s 锚点**纹丝不动**、其余格全 400s 超时判负。单发脚本（用完即删）验证根因：关卡 3 敌方**峰值金币只有 280**（整局 281s，矿工被玩家推进军队不断击杀，经济被压制），巨人 400 金**永远买不起**；法师 150 金虽买得起，但 `nextBuildType` 选「拥有数最少」，giant(0)/mage(0)/archer(0) 并列时 archer 先中 → **法师被影子化**。最终敌方 281s 只造出 13 矿工 + 1 剑士，**0 巨人 0 法师**。改 buildOrder 是「空操作」，已回退 `ai-profile.ts`，不留误导注释。

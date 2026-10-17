@@ -3,23 +3,27 @@ import type { UnitTypeId } from '../../data/units';
 import type { UnitState } from '../../sim/types';
 import { PALETTES } from './palette';
 import { poseFor } from './poses';
-import { ARM_LENGTH, LEG_LENGTH, LIMB_ORIGIN, LIMB_SIZE } from './rig';
+import { ARM_LENGTH, LEG_LENGTH, LIMB_ORIGIN, LIMB_SIZE, VISUAL_SCALE, WEAPON, hipHeightFor } from './rig';
 
 const LIMB_THICKNESS = 4;
 const TORSO_LENGTH = 22;
 const HEAD_RADIUS = 6;
-const WEAPON_LENGTH = 16;
 
 /**
  * Distance from the container origin (the hip) down to the feet.
- * Position a stickman at `groundY - STICKMAN_HIP_HEIGHT` to stand it on the ground.
+ * Position a stickman at `groundY - hipHeightFor(scale)` to stand it on the
+ * ground. This is only correct because a leg really does hang straight down
+ * from the hip — see `rig.ts`.
  *
- * This is only the right number because a leg really does hang straight down
- * from the hip — see `rig.ts`. When the leg was drawn as a horizontal rectangle
- * it was 18px long but reached 0px downward, so the feet floated 18px above the
- * ground line, pointing forwards.
+ * Kept for backward compatibility with call sites that still import it;
+ * new code should use `hipHeightFor(VISUAL_SCALE[typeId])` per-unit.
  */
 export const STICKMAN_HIP_HEIGHT = LEG_LENGTH;
+
+/** The hip-to-foot drop for a specific unit type. */
+export function stickmanHipHeight(typeId: UnitTypeId): number {
+  return hipHeightFor(VISUAL_SCALE[typeId]);
+}
 
 export interface Stickman {
   container: Phaser.GameObjects.Container;
@@ -53,6 +57,8 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
   const palette = PALETTES[typeId];
   const leg = LIMB_SIZE.leg;
   const arm = LIMB_SIZE.arm;
+  const scale = VISUAL_SCALE[typeId];
+  const weaponSpec = WEAPON[typeId];
 
   // Legs: a TALL rectangle pivoting at its TOP edge, so angle 0 hangs straight
   // down from the hip and a positive angle swings the foot forward.
@@ -81,10 +87,28 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
   const armFrontLimb = scene.add
     .rectangle(0, 0, arm.width, arm.height, palette.limb)
     .setOrigin(LIMB_ORIGIN.arm.x, LIMB_ORIGIN.arm.y);
-  const weapon = scene.add
-    .rectangle(ARM_LENGTH - 2, 0, WEAPON_LENGTH, 3, palette.weapon)
+
+  // Weapon: shaft + optional head block (giant's hammer).
+  const weaponShaft = scene.add
+    .rectangle(ARM_LENGTH - 2, 0, weaponSpec.shaftLength, weaponSpec.shaftThickness, palette.weapon)
     .setOrigin(0, 0.5);
-  const armFront = scene.add.container(0, shoulderY, [armFrontLimb, weapon]);
+  let weaponHead: Phaser.GameObjects.Rectangle | null = null;
+  if (weaponSpec.headWidth > 0) {
+    weaponHead = scene.add
+      .rectangle(
+        ARM_LENGTH - 2 + weaponSpec.shaftLength,
+        0,
+        weaponSpec.headWidth,
+        weaponSpec.headHeight,
+        palette.weapon,
+      )
+      .setOrigin(0, 0.5) as Phaser.GameObjects.Rectangle;
+  }
+  const armFront = scene.add.container(
+    0,
+    shoulderY,
+    weaponHead ? [armFrontLimb, weaponShaft, weaponHead] : [armFrontLimb, weaponShaft],
+  );
 
   // Back-to-front draw order.
   const container = scene.add.container(0, 0, [
@@ -95,6 +119,7 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
     head,
     armFront,
   ]);
+  container.setScale(scale, scale);
 
   return {
     container,
@@ -105,12 +130,13 @@ export function createStickman(scene: Phaser.Scene, typeId: UnitTypeId): Stickma
       armBack.setRotation(pose.armBack);
       legFront.setRotation(pose.legFront);
       legBack.setRotation(pose.legBack);
-      weapon.setRotation(pose.weapon);
+      weaponShaft.setRotation(pose.weapon);
+      if (weaponHead) weaponHead.setRotation(pose.weapon);
     },
     setFacing(dir: 1 | -1): void {
       // Facing is derived from side, not stored in the sim: on a single axis
       // "player is left, enemy is right" is a constant fact.
-      container.setScale(dir, 1);
+      container.setScale(dir * scale, scale);
     },
     destroy(): void {
       // No `fromScene` flag: this is a per-unit removal during play, not a
