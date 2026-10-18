@@ -713,26 +713,28 @@ v1 使用 **WebAudio 程序化合成音效**，零素材、零版权风险，与
 
 ### 8.1 兵种表
 
-| 字段 | 矿工 | 剑士 | 弓箭手 | 矛兵 |
-|---|---|---|---|---|
-| `id` | `miner` | `swordsman` | `archer` | `spearman` |
-| `maxHp` | 60 | 150 | **70** | 140 |
-| `armor` | 0 | 5 | 0 | 4 |
-| `armorType` | light | **heavy** | light | **heavy** |
-| `bodyRadius` | 10 | 14 | 11 | 13 |
-| `moveSpeed` (px/s) | 70 | 95 | 75 | 85 |
-| `attack` | — | 25 | 18 | 24 |
-| `attackType` | — | melee | ranged | melee |
-| `attackRange` (px) | — | 30 | 200 | 45 |
-| `attackCooldown` (s) | — | 1.0 | 1.2 | 1.2 |
-| `windupTime` (s) | — | 0.25 | 0.30 | 0.30 |
-| `projectileSpeed` (px/s) | — | — | 400 | — |
-| `bonusVs` | — | light ×1.5 | — | heavy ×1.6, light ×1.5 |
-| `goldCost` | 50 | 100 | 80 | 90 |
-| `popCost` | 1 | 1 | 1 | 1 |
-| `trainTime` (s) | 5 | 8 | 7 | 7 |
-| `carryCapacity` | 20 | — | — | — |
-| `gatherTime` (s) | 3.0 | — | — | — |
+| 字段 | 矿工 | 剑士 | 弓箭手 | 矛兵 | 巨人 | 法师 |
+|---|---|---|---|---|---|---|
+| `id` | `miner` | `swordsman` | `archer` | `spearman` | `giant` | `mage` |
+| `maxHp` | 60 | 150 | **70** | 140 | 500 | 60 |
+| `armor` | 0 | 5 | 0 | 4 | 12 | 0 |
+| `armorType` | light | **heavy** | light | **heavy** | **heavy** | light |
+| `bodyRadius` | 10 | 14 | 11 | 13 | 22 | 11 |
+| `moveSpeed` (px/s) | 70 | 95 | 75 | 85 | 55 | 70 |
+| `attack` | — | 25 | 18 | 24 | 60 | 22 |
+| `attackType` | — | melee | ranged | melee | melee | ranged |
+| `attackRange` (px) | — | 30 | 200 | 45 | **44** | 150 |
+| `attackCooldown` (s) | — | 1.0 | 1.2 | 1.2 | 1.8 | 2.0 |
+| `windupTime` (s) | — | 0.25 | 0.30 | 0.30 | 0.5 | 0.4 |
+| `projectileSpeed` (px/s) | — | — | 400 | — | — | 300 |
+| `bonusVs` | — | light ×1.5 | — | heavy ×1.6, light ×1.5 | — | — |
+| `goldCost` | 50 | 100 | 80 | 90 | 400 | 150 |
+| `popCost` | 1 | 1 | 1 | 1 | 3 | 1 |
+| `trainTime` (s) | 5 | 8 | 7 | 7 | 15 | 10 |
+| `carryCapacity` | 20 | — | — | — | 0 | 0 |
+| `gatherTime` (s) | 3.0 | — | — | — | 0 | 0 |
+
+> **M6.5 射程修订**：巨人 `attackRange` 30 → **44**。原值 30 < `bodyRadius_giant + bodyRadius_miner` = 22 + 10 = 32，导致巨人对所有它能物理接触的单位（矿工/弓箭手/法师/剑士/矛兵/巨人）永远打不到——分离系统保证最小中心距 ≥ 32px，而射程 30 永远小于 32。修为 44 后覆盖最坏情况（22 + 22 = 44）。剑士 `attackRange` 保持 30（对巨人 14 + 22 = 36 > 30 的缺口是已知设计限制：剑士打不到巨人，矛兵 45 射程可补位）。
 
 `popCost` 统一为 1，使「每方 40~60 单位」的人口上限 60 能够实现（§2 全局约束）。
 

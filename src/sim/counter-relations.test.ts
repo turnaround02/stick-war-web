@@ -144,8 +144,9 @@ const MATRIX: Matchup[] = [
   {
     label: 'mage x1 vs giant x1',
     scenario: sc({ mage: 1 }, { giant: 1 }),
-    expect: 'player',
-    why: 'M6 实测: 巨人移动速度 55px/s 太慢，法师射程 150 持续输出 74s 刚好 500 伤害击杀巨人，巨人追击途中被风筝',
+    expect: 'enemy',
+    why: 'M6.5 实测: 巨人射程修到 44（>= r22+r11=33）后能命中法师，958 tick 击杀；' +
+      '旧 30 射程时巨人永远打不到法师（32 > 30），法师 74s 风筝胜——那是 bug 不是设计',
   },
 ];
 

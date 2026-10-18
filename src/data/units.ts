@@ -161,7 +161,7 @@ export const UNITS: Record<UnitTypeId, UnitDef> = {
     moveSpeed: 55,
     attack: 60,
     attackType: 'melee',
-    attackRange: 30,
+    attackRange: 44,
     attackCooldown: 1.8,
     windupTime: 0.5,
     projectileSpeed: 0,

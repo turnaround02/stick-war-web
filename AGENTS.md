@@ -105,7 +105,7 @@ npm run lint     # ESLint（含 sim 边界检查）
 - `render/hud/layout.test.ts` — 按钮数断言 4→6（按数量驱动，自动适配；布局测试 35 项全绿）
 - **敌方 buildOrder 实测翻案，未改动**：见下
 
-## M6.5 已交付（巨人视觉）
+## M6.5 已交付（巨人视觉 + 射程修复）
 
 巨人从「换个颜色的火柴人」变成「一眼很厉害」：整体缩放 1.5× + 专属巨锤。纯渲染层，零 sim 改动。
 
@@ -113,6 +113,9 @@ npm run lint     # ESLint（含 sim 边界检查）
 - `render/stickman/skeleton.ts` — `createStickman` 按 typeId 取 scale/weapon；容器初始 `setScale(s,s)`；`setFacing` 改为 `setScale(dir*s, s)`（保持缩放）；武器 shaft+可选 head 两块；`stickmanHipHeight(typeId)` 取代全局 `STICKMAN_HIP_HEIGHT` 的调用。
 - `render/ghost.ts` / `render/scenes/BattleScene.ts` — 改用 `stickmanHipHeight(typeId)` 定位。
 - **spec §12 风险 #7 修订**：区分通道从「配色 + 武器形状」升级为「配色 + 武器形状 + 体型」，记录 M6.5 修订。
+- **`data/units.ts` — `giant.attackRange` 30 → 44**。原值 30 < `bodyRadius_giant + bodyRadius_miner` = 22 + 10 = 32，导致巨人对**所有**它能物理接触的单位永远打不到（分离系统保证最小中心距 ≥ 32px，射程 30 永远小于 32）。修为 44 后覆盖最坏情况（22+22=44）。纯数据表改动，零 sim 代码改动。
+- **`sim/counter-relations.test.ts`** — `mage x1 vs giant x1` 期望 `'player'` → `'enemy'`：旧 30 射程时巨人打不到法师（33 > 30），法师 74s 风筝胜——那是 bug 不是设计。44 射程后巨人能命中法师，958 tick 击杀。
+- **`sim/range-invariant.test.ts`（新）** — 结构性不变量测试：每个近战攻击方的 `attackRange >= bodyRadius_self + bodyRadius_target`。唯一已知例外：`swordsman → giant`（30 < 36），记录为设计限制（矛兵 45 射程是巨人克星）。配 2 条测试（共 801 tests）。
 
 ### M6.5 的关键设计（容易忘的）
 
@@ -120,6 +123,8 @@ npm run lint     # ESLint（含 sim 边界检查）
 - **`setFacing` 必须携带缩放。** 原实现 `container.setScale(dir, 1)` 会把 Y 缩放清零；改为 `dir*scale` 后朝向翻转与体型缩放共存。
 - **`STICKMAN_HIP_HEIGHT` 是 scale=1 的全局值，已废弃**（仍导出以保兼容）。新代码用 `stickmanHipHeight(typeId)` = `hipHeightFor(VISUAL_SCALE[typeId])` = `LEG_LENGTH × scale`。若忘记，巨人 1.5× 时脚会踩到地线下 9px。
 - **巨锤 = shaft(14×4) + head(10×14) 两块矩形。** head 在 shaft 端部，两块共用 `pose.weapon` 旋转。非巨人 unit 的 `WEAPON` 指向 `DEFAULT_WEAPON`（16×3 剑），`headWidth=0` 时不建 head 块。
+- **`attackRange` 是中心到中心距离，不是边缘到边缘。** `distanceToTarget` 对单位目标返回 `|x_target - x_self|`（中心距），对基地目标才减去 `BASE_RADIUS`。分离系统保证的最小中心距 = `bodyRadius_A + bodyRadius_B`。所以近战攻击方要命中目标，必须 `attackRange >= bodyRadius_A + bodyRadius_B`。这是 M6.5 射程修复的根因，也是 `range-invariant.test.ts` 守住的不变量。
+- **剑士 → 巨人是已知设计限制**（30 < 36），不是 bug。矛兵（45 射程）是巨人的克星。若日后想「剑士也能打巨人」，需改 `swordsman.attackRange` 到 36+ 并重扫 `counter-relations` 锚点（剑士 x5 vs 巨人 死锁 → 剑士磨死），本轮不动。
 
 ### M6.4 的关键设计（容易忘的）
 
@@ -147,7 +152,7 @@ npm run lint     # ESLint（含 sim 边界检查）
 ### M6 的关键设计（容易忘的）
 
 - **巨人是坦克，不是碾压者。** 1 巨人 vs 5 剑士 = **死锁**（6000 tick 超时，双方各有残留）；1 巨人 vs 8 弓箭手 = **敌胜**（弓箭手穿透重甲 ~30s 击杀）；1 巨人 vs 4 矛兵 = **敌胜**（heavy bonus 1.6 弥补 armor 12，~42s）。巨人的定位是**需要掩护或数量优势**的前排，不是 1vN 的碾压单位。
-- **法师 1v1 打不过任何近战**（与弓箭手同规则）：mage x1 vs swordsman x2 → 敌胜（513 tick）；mage x1 vs spearman x2 → 敌胜。法师对巨人反而**胜**（mage x1 vs giant x1 → 玩家胜，4055 tick）：巨人 55px/s 太慢，法师 150 射程风筝 74s 刚好 500 伤害击杀。
+- **法师 1v1 打不过任何近战**（与弓箭手同规则）：mage x1 vs swordsman x2 → 敌胜（513 tick）；mage x1 vs spearman x2 → 敌胜。**M6.5 前**法师对巨人反而**胜**（mage x1 vs giant x1 → 玩家胜，4055 tick）：那是巨人 30 射程打不到法师（33 > 30）的 bug。**M6.5 修复后**（射程 44）法师 1v1 打不过巨人（958 tick 敌胜），与规则一致。
 - **`stunOnHitTicks` 是 `UnitDef` 上的可选字段，不进 `hashWorld`**（表是静态的）；`stunTicksLeft` 已在 `Unit` 上（v1 预留，`hash.ts` 已覆盖）。M6.3 只是给 `stunTicksLeft` 加了一个**生产者**（法师命中），消费侧（`ai.ts` 第 3 步、`movement.ts` 第 4 步）早已就绪。
 - **`Projectile.attackerType` 进了哈希。** M6.3 把 `attackerType` 加入弹丸哈希行，**关卡 1 / 关卡 2 无弹丸**（剑士/矛兵/弓箭手对撞 + 基地条件），所以回归锚点全绿。若未来关卡引入远程单位，新增的 `attackerType` 字段会改变弹丸哈希，需同步更新 `hash.ts` 的弹丸行（已做）。
 - **M6.2 未改 `Projectile`**：巨人近战，不涉及远程弹丸，`applyDamage` 的 `attackerType` 参数是 M6.3 才加的（M6.2 提交时 `applyDamage` 签名未变）。
