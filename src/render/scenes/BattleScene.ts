@@ -171,6 +171,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.result = createResultOverlay(this, {
       onReplay: () => this.replay(),
       onNextLevel: () => this.goToNextLevel(),
+      onMenu: () => this.goToMenu(),
     });
 
     this.frontline = createFrontline(this);
@@ -210,6 +211,11 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
   private goToNextLevel(): void {
     const next = LEVELS[(this.levelIndex + 1) % LEVELS.length];
     this.scene.restart({ config: next, seed: this.seed });
+  }
+
+  /** Returns to the level-select menu (M7). The menu re-reads the save. */
+  private goToMenu(): void {
+    this.scene.start('Menu');
   }
 
   /** The label for the "next" button: another level, or back to the start. */

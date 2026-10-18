@@ -43,8 +43,13 @@ export const ZH_CN: Record<string, string> = {
   'result.replay': '重玩',
   'result.next': '下一关',
   'result.restartCampaign': '返回第一关',
+  'result.menu': '菜单',
   // Endless result: the best wave ever reached (stored in localStorage).
   'result.best': '最高',
+
+  // Level-select menu (M7)
+  'menu.title': '选择关卡',
+  'menu.resetProgress': '重置进度',
 
   // Level names — keys follow `level.<levelId>.name`.
   'level.level-1.name': '第一关',

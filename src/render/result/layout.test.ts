@@ -124,27 +124,34 @@ describe('resultPanelRect', () => {
 });
 
 describe('resultButtonRects', () => {
-  it('never overlaps the two buttons', () => {
+  it('never overlaps any of the three buttons', () => {
     for (const [w, h] of [[1280, 720], [800, 600], [640, 480], [1920, 1080]] as const) {
-      const { replay, next } = resultButtonRects(w, h);
-      const overlap = replay.x < next.x + next.w && next.x < replay.x + replay.w;
-      expect(overlap, `buttons overlap at ${w}x${h}`).toBe(false);
+      const { replay, next, menu } = resultButtonRects(w, h);
+      const buttons = [replay, next, menu];
+      for (let i = 0; i < buttons.length; i++) {
+        for (let j = i + 1; j < buttons.length; j++) {
+          const a = buttons[i]!;
+          const b = buttons[j]!;
+          const overlap = a.x < b.x + b.w && b.x < a.x + a.w;
+          expect(overlap, `buttons ${i}/${j} overlap at ${w}x${h}`).toBe(false);
+        }
+      }
     }
   });
 
-  it('puts both buttons inside the panel', () => {
+  it('puts all three buttons inside the panel', () => {
     const panel = resultPanelRect(1280, 720);
-    const { replay, next } = resultButtonRects(1280, 720);
-    for (const b of [replay, next]) {
+    const { replay, next, menu } = resultButtonRects(1280, 720);
+    for (const b of [replay, next, menu]) {
       expect(b.x).toBeGreaterThanOrEqual(panel.x);
       expect(b.x + b.w).toBeLessThanOrEqual(panel.x + panel.w);
       expect(b.y + b.h).toBeLessThanOrEqual(panel.y + panel.h);
     }
   });
 
-  it('keeps both buttons inside the viewport at small sizes', () => {
-    const { replay, next } = resultButtonRects(640, 480);
-    for (const b of [replay, next]) {
+  it('keeps all three buttons inside the viewport at small sizes', () => {
+    const { replay, next, menu } = resultButtonRects(640, 480);
+    for (const b of [replay, next, menu]) {
       expect(b.x).toBeGreaterThanOrEqual(0);
       expect(b.y).toBeGreaterThanOrEqual(0);
       expect(b.x + b.w).toBeLessThanOrEqual(640);

@@ -27,6 +27,7 @@ const OVERLAY_DEPTH = 2000;
 export interface ResultOverlayCallbacks {
   onReplay(): void;
   onNextLevel(): void;
+  onMenu(): void;
 }
 
 export interface ResultOverlay {
@@ -92,9 +93,11 @@ export function createResultOverlay(
 
   const replay = makeButton(callbacks.onReplay);
   const next = makeButton(callbacks.onNextLevel);
+  const menu = makeButton(callbacks.onMenu);
   replay.label.setText(t('result.replay'));
+  menu.label.setText(t('result.menu'));
 
-  const all = [dim, panel, title, subtitle, replay.rect, replay.label, next.rect, next.label];
+  const all = [dim, panel, title, subtitle, replay.rect, replay.label, next.rect, next.label, menu.rect, menu.label];
 
   return {
     sync(world: World, ticks: number, nextLabel: string, endless?: { wave: number; bestWave: number }): void {
@@ -121,6 +124,7 @@ export function createResultOverlay(
       for (const [btn, r] of [
         [replay, b.replay],
         [next, b.next],
+        [menu, b.menu],
       ] as const) {
         btn.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
         btn.rect.setSize(r.w, r.h);

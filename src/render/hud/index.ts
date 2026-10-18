@@ -31,6 +31,7 @@ import {
   TRAINABLE,
   type HudMetrics,
 } from './layout';
+import { trainingProgress, trainingBarRect } from './training-progress';
 import type { Side, Stance, UnitTypeId, World } from '../../sim/types';
 
 const FONT = 'monospace';
@@ -93,6 +94,18 @@ export function createHud(
     .text(12 + 10, 64, '', { fontFamily: FONT, fontSize: '14px', color: TEXT_DIM })
     .setScrollFactor(0)
     .setDepth(TEXT_DEPTH);
+
+  // ── Training progress (below the resource panel) ─────────────────
+  // A filled bar + label for the HEAD of the serial queue. Hidden entirely
+  // when the queue is empty: an always-visible empty bar reads as "broken".
+  // `sync` reads world.trainingQueue[side] directly (render reads sim
+  // read-only); the arithmetic lives in training-progress.ts, tested.
+  const trainBar = scene.add.graphics().setScrollFactor(0).setDepth(BAR_DEPTH);
+  const trainLabel = scene.add
+    .text(0, 0, '', { fontFamily: FONT, fontSize: '12px', color: TEXT_DIM })
+    .setScrollFactor(0)
+    .setDepth(TEXT_DEPTH)
+    .setVisible(false);
 
   // ── Bottom bar background ─────────────────────────────────────────
   const barBg = scene.add.graphics().setScrollFactor(0).setDepth(BAR_DEPTH);
@@ -238,6 +251,20 @@ export function createHud(
       // cached label0 never followed a locale change (spec §7.5.1). The strings
       // are static, so this is a cheap setText with no visible cost.
       for (const b of stanceButtons) b.label.setText(t(b.key));
+
+      // Training progress: the head order's remaining time and a filling bar.
+      // Label rides above the bar so both move together on resize.
+      const prog = trainingProgress(world, side);
+      trainLabel.setVisible(prog.visible).setText(prog.label);
+      trainBar.clear();
+      if (prog.visible) {
+        const rect = trainingBarRect(scene.scale.width);
+        trainBar.fillStyle(BG_COLOR, 0.9);
+        trainBar.fillRect(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2);
+        trainBar.fillStyle(BUTTON_ACTIVE, 1);
+        trainBar.fillRect(rect.x, rect.y, rect.w * prog.fraction, rect.h);
+        trainLabel.setPosition(rect.x + rect.w + 8, rect.y + rect.h / 2).setOrigin(0, 0.5);
+      }
     },
 
     setSpeed(speed: GameSpeed): void {
@@ -259,6 +286,8 @@ export function createHud(
       resourceBg.destroy();
       resourceText_.destroy();
       waveText_.destroy();
+      trainBar.destroy();
+      trainLabel.destroy();
       barBg.destroy();
       speedHeader.destroy();
       for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton]) {

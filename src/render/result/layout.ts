@@ -20,7 +20,7 @@ export interface HudRect {
 }
 
 /** Preferred panel size; it shrinks to fit a small viewport rather than overflow. */
-export const RESULT_PANEL = { w: 420, h: 220, buttonW: 160, buttonH: 48, gap: 16 } as const;
+export const RESULT_PANEL = { w: 480, h: 220, buttonW: 132, buttonH: 48, gap: 16 } as const;
 
 /** Margin kept between the panel and the viewport edge. */
 const MARGIN = 16;
@@ -65,21 +65,22 @@ export function resultPanelRect(width: number, height: number): HudRect {
   return { x: (width - w) / 2, y: (height - h) / 2, w, h };
 }
 
-/** The two action buttons, side by side under the text. */
+/** The three action buttons, side by side under the text. */
 export function resultButtonRects(
   width: number,
   height: number,
-): { replay: HudRect; next: HudRect } {
+): { replay: HudRect; next: HudRect; menu: HudRect } {
   const panel = resultPanelRect(width, height);
   const gap = RESULT_PANEL.gap;
-  // Shrink rather than overflow: a narrow panel must still hold both buttons.
-  const w = Math.max(0, Math.min(RESULT_PANEL.buttonW, (panel.w - gap - 24) / 2));
+  // Shrink rather than overflow: a narrow panel must still hold all buttons.
+  const w = Math.max(0, Math.min(RESULT_PANEL.buttonW, (panel.w - gap * 2 - 24) / 3));
   const h = Math.min(RESULT_PANEL.buttonH, Math.max(0, panel.h / 4));
-  const totalW = w * 2 + gap;
+  const totalW = w * 3 + gap * 2;
   const startX = panel.x + (panel.w - totalW) / 2;
   const y = panel.y + panel.h - h - BOTTOM_PAD;
   return {
     replay: { x: startX, y, w, h },
     next: { x: startX + w + gap, y, w, h },
+    menu: { x: startX + (w + gap) * 2, y, w, h },
   };
 }

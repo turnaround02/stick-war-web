@@ -105,7 +105,28 @@ npm run lint     # ESLint（含 sim 边界检查）
 - `render/hud/layout.test.ts` — 按钮数断言 4→6（按数量驱动，自动适配；布局测试 35 项全绿）
 - **敌方 buildOrder 实测翻案，未改动**：见下
 
-## M6.5 已交付（巨人视觉 + 射程修复）
+## M7 已交付（训练进度条 + 关卡选择菜单）
+
+用户的三个诉求：①第三关人口上限太快到 ②造兵想要进度条 ③想要关卡选择菜单。**①实测是关卡设计本身**（`LEVEL_3.popCap = {player: 8, enemy: 8}`，`levels.ts:106`），保留不动（放宽需重扫 level-3 档案 + 重钉 281s 锚点，独立任务）；②③已实现，全部零 sim 改动。
+
+- `render/hud/training-progress.ts`（新）— 纯函数：`trainingProgress(world, side)`（队首 `{visible, label, fraction}`，fraction = `1 - ticksLeft/trainTime`）、`trainingBarRect(width)`（钳制不越窄视口）。读 `world.trainingQueue[side][0]` 只读 sim，配 9 条测试。
+- `render/hud/index.ts` — 资源面板下方接进度条（填充条 + 「单位名 m:ss」标签）；**队列空整组隐藏**；`destroy` 一并清理。
+- `render/menu/layout.ts`（新）— 纯函数：`menuPanelRect` / `menuRows`（解锁 = `furthestLevel >= index`，无尽行仅在打完末个战役关后解锁）/ `menuAuxRect` / `canResetProgress` / `resumeLevelIndex`（封顶最后战役关，与存档规则一致）。配 15 条测试。
+- `render/scenes/MenuScene.ts`（新）— 薄渲染器：标题 + 关卡行（未解锁灰显不可点）+「重置进度」（有进度才显示，写回 `DEFAULT_SAVE` 后 `scene.restart()`）。启动关卡带 `CAMPAIGN_SEED`（确定性对所有模式一视同仁）。
+- `render/scenes/BootScene.ts` — **不再读存档选关**，直接 `scene.start('Menu')`；「从最远解锁关恢复」的职责移交菜单（`resumeLevelIndex` 单一真相）。
+- `render/result/{layout,index}.ts` — `resultButtonRects` 2 键 → **3 键**（重玩/下一关/菜单；面板加宽 420→480、键宽 160→132），`ResultOverlayCallbacks` 新增 `onMenu`，BattleScene `goToMenu()` → `scene.start('Menu')`。
+- `i18n/zh-CN.ts` — 新键 `result.menu`（菜单）、`menu.title`（选择关卡）、`menu.resetProgress`（重置进度）。
+- **spec §8.4.6 / §8.4.7（新）** + §13.7 Q2 修订（「不做关卡选择菜单」→ M7 做）。
+
+### M7 的关键设计（容易忘的）
+
+- **解锁判定单一真相**：菜单行解锁 = `furthestLevel >= index`，与旧 BootScene 恢复规则逐字一致（`resumeLevelIndex` 测试钉住「恢复不能停进无尽」）。两处都读同一个存档字段，但推导函数只有一份。
+- **进度条只显示队首**：队列是串行的，队首的 `ticksLeft` 就是「下一个单位什么时候出现」的完整答案。完整队列列表会让 9 键底栏更拥挤，本轮明确不做（spec §8.4.7）。
+- **第三关人口 8 是设计不是缺陷**：`canQueue` 把「在场 + 队列 pending + 新单位」一起对 `popCap` 校验（`training.ts:38-43`），8 人口 = 最多 2 巨人（pop 3）或 8 普通兵。放宽是关卡设计任务，必须走「重扫档案 + 重钉锚点」流程。
+- **「重置进度」只在有进度时出现**（`canResetProgress(furthestLevel, endlessBestWave)`）——对全新存档显示重置是无意义操作。
+- **MenuScene 点击行的种子是 `CAMPAIGN_SEED`**：与旧 BootScene 恢复路径相同种子，同关同表现，确定性不因菜单入口而破坏。
+
+
 
 巨人从「换个颜色的火柴人」变成「一眼很厉害」：整体缩放 1.5× + 专属巨锤。纯渲染层，零 sim 改动。
 
