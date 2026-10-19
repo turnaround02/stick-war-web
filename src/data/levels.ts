@@ -103,7 +103,15 @@ export const LEVEL_3: MatchConfig = {
   mineGold: { player: 6000, enemy: 6000 },
   startGold: { player: 200, enemy: 200 },
   startMiners: { player: 3, enemy: 3 },
-  popCap: { player: 8, enemy: 8 },
+  // 12, not the original 8. Swept (2026-10-19, 5 seeds, real runMatch path):
+  //   8 -> 281s (baseline)   12 -> 280s   16 -> 213s   24 -> 212s
+  // The 3-6min window centre is 270s, so 12 keeps the calibrated pacing
+  // (280 ≈ 281) while unlocking "2 giants + a real economy" — a structure 8
+  // could not hold (2 giants = 6 pop left only 2 for miners). 16/24 measure
+  // IDENTICALLY (213/212s): past 16 the pacing is saturated by the enemy's
+  // early collapse, so the extra cap buys nothing but micro. If a future task
+  // wants a roomier feel, re-pin to 213s at cap 16 — measured, one line.
+  popCap: { player: 12, enemy: 12 },
   enemyAi: 'economy',
   enemyProfile: 'level-3',
   waves: [],

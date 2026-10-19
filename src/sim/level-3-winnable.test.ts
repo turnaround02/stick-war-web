@@ -34,9 +34,18 @@ describe('level 3 — the reference player wins', () => {
   });
 
   it('takes the duration the enemy profile was swept for', () => {
-    // Pins the measured value, not just the window.
+    // Pins the measured value, not just the window. Re-swept 2026-10-19 when
+    // popCap widened 8 -> 12: the sweep measured 280s on all 5 seeds (the old
+    // 281s at cap 8 survives in the levels.ts comment).
     const r = runMatch(LEVEL_3, 1, 'reference');
-    expect(Math.round(r.ticks / 30)).toBe(281);
+    expect(Math.round(r.ticks / 30)).toBe(280);
+  });
+
+  it('lets the player hold 12 population, not 8', () => {
+    // The reason this re-sweep happened: the cap was binding from the ramp.
+    // 12 = 2 giants (6 pop) + 6 miners, a structure 8 could not hold.
+    const r = runMatch(LEVEL_3, 1, 'reference');
+    expect(r.survivors.player).toBe(12);
   });
 
   it('can also be LOST', () => {
