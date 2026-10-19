@@ -50,6 +50,11 @@ export const ZH_CN: Record<string, string> = {
   // Level-select menu (M7)
   'menu.title': '选择关卡',
   'menu.resetProgress': '重置进度',
+  // Preference toggles (M7b)
+  'menu.speedPref': '速度偏好',
+  'menu.sfxPref': '音效',
+  'menu.sfxOn': '开',
+  'menu.sfxOff': '关',
 
   // Level names — keys follow `level.<levelId>.name`.
   'level.level-1.name': '第一关',

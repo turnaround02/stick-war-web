@@ -27,6 +27,7 @@ describe('DEFAULT_SAVE', () => {
       furthestLevel: 0,
       endlessBestWave: 0,
       speedPreference: 1,
+      sfxMuted: false,
     });
   });
 });
@@ -80,6 +81,31 @@ describe('loadSave', () => {
     expect(out.furthestLevel).toBe(1);
   });
 
+  it('falls back sfxMuted to false when the field is absent (v1 pre-M7b saves)', () => {
+    // A save written before sfxMuted existed keeps its progress and only
+    // defaults the new field — the whole point of the lenient merge.
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, furthestLevel: 2, endlessBestWave: 4, speedPreference: 2 }),
+    });
+    const out = loadSave(s);
+    expect(out.sfxMuted).toBe(false);
+    expect(out.furthestLevel).toBe(2);
+  });
+
+  it('preserves a true sfxMuted preference', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, furthestLevel: 1, endlessBestWave: 0, speedPreference: 1, sfxMuted: true }),
+    });
+    expect(loadSave(s).sfxMuted).toBe(true);
+  });
+
+  it('falls back sfxMuted to false on a garbage type', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, furthestLevel: 0, endlessBestWave: 0, speedPreference: 1, sfxMuted: 'yes' }),
+    });
+    expect(loadSave(s).sfxMuted).toBe(false);
+  });
+
   it('survives a storage whose getItem throws', () => {
     const hostile: StorageLike = {
       getItem: () => {
@@ -95,7 +121,7 @@ describe('loadSave', () => {
 describe('saveGame', () => {
   it('round-trips through storage', () => {
     const s = memoryStorage();
-    const data: SaveData = { version: 1, furthestLevel: 2, endlessBestWave: 12, speedPreference: 4 };
+    const data: SaveData = { version: 1, furthestLevel: 2, endlessBestWave: 12, speedPreference: 4, sfxMuted: true };
     saveGame(s, data);
     expect(loadSave(s)).toEqual(data);
   });

@@ -1,11 +1,15 @@
 import Phaser from 'phaser';
 import { LEVELS, CAMPAIGN_SEED } from '../../data/levels';
-import { browserStorage, loadSave, saveGame, DEFAULT_SAVE } from '../../save/storage';
+import { browserStorage, loadSave, saveGame, DEFAULT_SAVE, type SaveData } from '../../save/storage';
 import { t } from '../../i18n';
 import {
   menuPanelRect,
   menuRows,
   menuAuxRect,
+  menuToggleRects,
+  nextSpeed,
+  speedToggleLabel,
+  sfxToggleLabel,
   canResetProgress,
   type MenuRow,
 } from '../menu/layout';
@@ -57,11 +61,51 @@ export class MenuScene extends Phaser.Scene {
     const rows = menuRows(width, height, save.furthestLevel);
     for (const row of rows) this.buildRow(row);
 
+    // Preference toggles (M7b): click cycles the value and persists it through
+    // the same tolerant write path as the reset button. Labels are re-derived
+    // from the save so the button text always shows the CURRENT value.
+    const toggles = menuToggleRects(width, height);
+    this.buildToggle(toggles.speed, () => {
+      const cur = loadSave(this.saveStorage);
+      return { ...cur, speedPreference: nextSpeed(cur.speedPreference) };
+    }, () => speedToggleLabel(loadSave(this.saveStorage).speedPreference));
+    this.buildToggle(toggles.sfx, () => {
+      const cur = loadSave(this.saveStorage);
+      return { ...cur, sfxMuted: !cur.sfxMuted };
+    }, () => sfxToggleLabel(loadSave(this.saveStorage).sfxMuted));
+
     // Reset progress: offered only when there IS progress, and it writes the
     // default save — the same tolerant write path the game already uses.
     if (canResetProgress(save.furthestLevel, save.endlessBestWave)) {
       this.buildAux(menuAuxRect(width, height));
     }
+  }
+
+  /**
+   * A preference toggle: label re-read from the save on every click (no stale
+   * cache), value mutated by `nextSave` and persisted immediately.
+   */
+  private buildToggle(
+    rect: { x: number; y: number; w: number; h: number },
+    nextSave: () => SaveData,
+    label: () => string,
+  ): void {
+    const cx = rect.x + rect.w / 2;
+    const cy = rect.y + rect.h / 2;
+    const button = this.add
+      .rectangle(cx, cy, rect.w, rect.h, BUTTON_ON)
+      .setDepth(11)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add
+      .text(cx, cy, label(), { fontFamily: FONT, fontSize: '14px', color: TEXT_LIGHT })
+      .setOrigin(0.5)
+      .setDepth(12);
+
+    button.on('pointerdown', () => {
+      saveGame(this.saveStorage, nextSave());
+      // Re-derive from the save: one source of truth for the shown value.
+      text.setText(label());
+    });
   }
 
   /** One level row: a button (locked rows render grey and inert). */

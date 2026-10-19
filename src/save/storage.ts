@@ -31,6 +31,11 @@ export interface SaveData {
   endlessBestWave: number;
   /** Preferred game speed, applied at the start of a match. */
   speedPreference: GameSpeedPref;
+  /**
+   * User's sound preference (M7b). Distinct from the TRANSIENT mute gate
+   * (pause/result): this survives across sessions; the gate does not.
+   */
+  sfxMuted: boolean;
 }
 
 export const DEFAULT_SAVE: SaveData = {
@@ -38,6 +43,7 @@ export const DEFAULT_SAVE: SaveData = {
   furthestLevel: 0,
   endlessBestWave: 0,
   speedPreference: 1,
+  sfxMuted: false,
 };
 
 /** The subset of the Storage API this module needs. */
@@ -83,6 +89,10 @@ export function loadSave(storage: StorageLike): SaveData {
       speedPreference: isSpeedPref(obj.speedPreference)
         ? obj.speedPreference
         : DEFAULT_SAVE.speedPreference,
+      // Lenient merge, not a version bump: a v1 save without this field keeps
+      // its progress and simply defaults the new one. Bumping the version
+      // would discard every existing save over a one-field addition.
+      sfxMuted: typeof obj.sfxMuted === 'boolean' ? obj.sfxMuted : DEFAULT_SAVE.sfxMuted,
     };
   } catch {
     // Corrupt JSON, a throwing getItem, anything else: the game must still run.

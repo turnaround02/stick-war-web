@@ -147,7 +147,10 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.sfxUnlockEvents.length = 0;
     this.sfxUnlocked = false;
     this.sfxPrev = snapshotWorld(this.world);
-    this.audio.setMuted(false);
+    // M7b: seed the gate from the saved preference — not a hard `false`, which
+    // would unmute a user who turned sound off in the menu. The per-frame
+    // update() call keeps this authoritative from the first frame on.
+    this.audio.setMuted(this.saveData.sfxMuted);
 
     this.groundLine = this.add.graphics();
     this.projectiles = createProjectileLayer(this);
@@ -398,10 +401,11 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       this.audio.unlock();
     }
 
-    // M5c Q5: pause/result are silent. The `setMuted` gate suspends the
-    // context AND empties the event list, so an in-flight tail freezes and
-    // no new event can ring.
-    this.audio.setMuted(this.paused || decided);
+    // M5c Q5 + M7b: pause/result are silent, AND so is the user's menu sound
+    // preference. `AudioManager.setMuted` is a TRANSIENT gate (re-set every
+    // frame), the preference lives in the save — the OR merge happens here,
+    // at the only call site, so the manager stays a dumb on/off switch.
+    this.audio.setMuted(this.saveData.sfxMuted || this.paused || decided);
 
     // M5c: diff the previous-tick snapshot against the current world state
     // and play the events. `diffSfx` already applies the per-tick cap and

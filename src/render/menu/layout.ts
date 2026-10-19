@@ -13,6 +13,7 @@
 
 import { LEVELS, LAST_CAMPAIGN_INDEX } from '../../data/levels';
 import { t } from '../../i18n';
+import type { GameSpeedPref } from '../../save/storage';
 
 export interface MenuRect {
   x: number;
@@ -30,6 +31,11 @@ export const MENU_LAYOUT = {
   buttonH: 40,
   /** The auxiliary action under the level list (reset progress). */
   auxW: 200,
+  /**
+   * The two preference toggles (speed / sfx), side by side between the rows
+   * and the reset button. Each takes half the row width minus a gap.
+   */
+  toggleH: 36,
 } as const;
 
 const MARGIN = 16;
@@ -49,9 +55,16 @@ export interface MenuRow {
 /** The centred panel that holds everything. */
 export function menuPanelRect(width: number, height: number): MenuRect {
   const w = Math.min(MENU_LAYOUT.panelW, Math.max(0, width - MARGIN * 2));
-  // Panel grows with its content: title + rows + aux button.
+  // Panel grows with its content: title + rows + toggles + aux button.
   const contentH =
-    MENU_LAYOUT.titleH + LEVELS.length * MENU_LAYOUT.rowH + (LEVELS.length - 1) * MENU_LAYOUT.rowGap + MENU_LAYOUT.buttonH + MARGIN;
+    MENU_LAYOUT.titleH +
+    LEVELS.length * MENU_LAYOUT.rowH +
+    (LEVELS.length - 1) * MENU_LAYOUT.rowGap +
+    MENU_LAYOUT.rowGap +
+    MENU_LAYOUT.toggleH + // toggles row
+    MENU_LAYOUT.rowGap +
+    MENU_LAYOUT.buttonH + // aux button
+    MARGIN;
   const h = Math.min(contentH, Math.max(0, height - MARGIN * 2));
   return { x: (width - w) / 2, y: (height - h) / 2, w, h };
 }
@@ -85,19 +98,65 @@ export function menuRows(width: number, height: number, furthestLevel: number): 
   return rows;
 }
 
-/** The "reset progress" button, centred under the rows. */
+/** The "reset progress" button, centred under the rows and toggles. */
 export function menuAuxRect(width: number, height: number): MenuRect {
   const panel = menuPanelRect(width, height);
   const rows = menuRows(width, height, 0);
   const last = rows[rows.length - 1];
   const lastBottom = last ? last.rect.y + last.rect.h : panel.y + MENU_LAYOUT.titleH;
+  const togglesBottom = lastBottom + MENU_LAYOUT.rowGap + MENU_LAYOUT.toggleH;
   const w = Math.min(MENU_LAYOUT.auxW, Math.max(0, panel.w - MARGIN * 2));
   return {
     x: panel.x + (panel.w - w) / 2,
-    y: Math.min(lastBottom + MENU_LAYOUT.rowGap, panel.y + panel.h - MENU_LAYOUT.buttonH),
+    y: Math.min(togglesBottom + MENU_LAYOUT.rowGap, panel.y + panel.h - MENU_LAYOUT.buttonH),
     w,
     h: MENU_LAYOUT.buttonH,
   };
+}
+
+/**
+ * The two preference toggles, side by side under the level rows.
+ *
+ * Click cycles the value (sfx: on/off; speed: 1x → 2x → 4x). One rect each,
+ * no overlap with the rows or the aux button — asserted in layout.test.ts.
+ */
+export function menuToggleRects(width: number, height: number): { speed: MenuRect; sfx: MenuRect } {
+  const panel = menuPanelRect(width, height);
+  const rows = menuRows(width, height, 0);
+  const last = rows[rows.length - 1];
+  const lastBottom = last ? last.rect.y + last.rect.h : panel.y + MENU_LAYOUT.titleH;
+  const y = Math.min(
+    lastBottom + MENU_LAYOUT.rowGap,
+    panel.y + panel.h - MENU_LAYOUT.toggleH - MARGIN,
+  );
+  const gap = MENU_LAYOUT.rowGap;
+  const w = Math.max(0, (Math.min(360, Math.max(0, panel.w - MARGIN * 2)) - gap) / 2);
+  const startX = panel.x + (panel.w - (w * 2 + gap)) / 2;
+  return {
+    speed: { x: startX, y, w, h: MENU_LAYOUT.toggleH },
+    sfx: { x: startX + w + gap, y, w, h: MENU_LAYOUT.toggleH },
+  };
+}
+
+/** Speed preferences cycle in this order. */
+export const SPEED_CYCLE: readonly GameSpeedPref[] = [1, 2, 4];
+
+/** The next speed after the current one, wrapping through SPEED_CYCLE. An
+ * unknown value recovers to the first entry (1x). */
+export function nextSpeed(current: GameSpeedPref): GameSpeedPref {
+  const i = SPEED_CYCLE.indexOf(current);
+  if (i < 0) return SPEED_CYCLE[0]!;
+  return SPEED_CYCLE[(i + 1) % SPEED_CYCLE.length]!;
+}
+
+/** The speed toggle's label: the value that WILL apply to the next match. */
+export function speedToggleLabel(current: GameSpeedPref): string {
+  return `${t('menu.speedPref')}: ${current}x`;
+}
+
+/** The sfx toggle's label: the state after clicking (the target state). */
+export function sfxToggleLabel(muted: boolean): string {
+  return `${t('menu.sfxPref')}: ${t(muted ? 'menu.sfxOff' : 'menu.sfxOn')}`;
 }
 
 /**

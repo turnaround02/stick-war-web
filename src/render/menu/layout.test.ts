@@ -3,6 +3,10 @@ import {
   menuPanelRect,
   menuRows,
   menuAuxRect,
+  menuToggleRects,
+  nextSpeed,
+  speedToggleLabel,
+  sfxToggleLabel,
   canResetProgress,
   resumeLevelIndex,
   MENU_LAYOUT,
@@ -120,9 +124,72 @@ describe('resumeLevelIndex', () => {
   });
 });
 
+describe('menuToggleRects', () => {
+  it('sits below the last level row and above the aux button', () => {
+    const rows = menuRows(1280, 720, 0);
+    const last = rows[rows.length - 1]!;
+    const toggles = menuToggleRects(1280, 720);
+    const aux = menuAuxRect(1280, 720);
+    expect(toggles.speed.y).toBeGreaterThanOrEqual(last.rect.y + last.rect.h);
+    expect(aux.y).toBeGreaterThanOrEqual(toggles.speed.y + toggles.speed.h);
+  });
+
+  it('places the two toggles side by side without overlap', () => {
+    const { speed, sfx } = menuToggleRects(1280, 720);
+    expect(speed.x + speed.w).toBeLessThanOrEqual(sfx.x);
+    expect(speed.h).toBe(MENU_LAYOUT.toggleH);
+    expect(sfx.h).toBe(MENU_LAYOUT.toggleH);
+  });
+
+  it('stays inside the panel at small viewports', () => {
+    for (const [w, h] of [[800, 600], [640, 480]] as const) {
+      const panel = menuPanelRect(w, h);
+      const { speed, sfx } = menuToggleRects(w, h);
+      for (const r of [speed, sfx]) {
+        expect(r.x, `${w}x${h}`).toBeGreaterThanOrEqual(panel.x);
+        expect(r.x + r.w, `${w}x${h}`).toBeLessThanOrEqual(panel.x + panel.w);
+        expect(r.y + r.h, `${w}x${h}`).toBeLessThanOrEqual(panel.y + panel.h);
+      }
+    }
+  });
+
+  it('never has a negative width', () => {
+    const { speed } = menuToggleRects(240, 720);
+    expect(speed.w).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('nextSpeed', () => {
+  it('cycles 1x → 2x → 4x → 1x', () => {
+    expect(nextSpeed(1)).toBe(2);
+    expect(nextSpeed(2)).toBe(4);
+    expect(nextSpeed(4)).toBe(1);
+  });
+
+  it('recovers from an out-of-range value', () => {
+    // An unknown value is not in the cycle, so the safest recovery is 1x —
+    // the default speed — rather than guessing a "next".
+    expect(nextSpeed(3 as never)).toBe(1);
+  });
+});
+
+describe('toggle labels', () => {
+  it('labels the speed toggle with the value that will apply', () => {
+    expect(speedToggleLabel(1)).toBe('速度偏好: 1x');
+    expect(speedToggleLabel(4)).toBe('速度偏好: 4x');
+  });
+
+  it('labels the sfx toggle with the state after clicking', () => {
+    // The label shows the TARGET state: sound on when not muted, off when muted.
+    expect(sfxToggleLabel(false)).toBe('音效: 开');
+    expect(sfxToggleLabel(true)).toBe('音效: 关');
+  });
+});
+
 describe('MENU_LAYOUT sanity', () => {
   it('panel is wide enough for its content', () => {
     expect(MENU_LAYOUT.panelW).toBeGreaterThan(MENU_LAYOUT.auxW);
     expect(MENU_LAYOUT.rowH).toBeGreaterThan(MENU_LAYOUT.buttonH);
+    expect(MENU_LAYOUT.toggleH).toBeLessThan(MENU_LAYOUT.buttonH);
   });
 });

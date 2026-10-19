@@ -105,9 +105,25 @@ npm run lint     # ESLint（含 sim 边界检查）
 - `render/hud/layout.test.ts` — 按钮数断言 4→6（按数量驱动，自动适配；布局测试 35 项全绿）
 - **敌方 buildOrder 实测翻案，未改动**：见下
 
-## M7 已交付（训练进度条 + 关卡选择菜单）
+## M7b 已交付（菜单偏好开关）
 
-用户的三个诉求：①第三关人口上限太快到 ②造兵想要进度条 ③想要关卡选择菜单。**①实测是关卡设计本身**（`LEVEL_3.popCap = {player: 8, enemy: 8}`，`levels.ts:106`），保留不动（放宽需重扫 level-3 档案 + 重钉 281s 锚点，独立任务）；②③已实现，全部零 sim 改动。
+M7 推迟的两项：菜单加「速度偏好」+「音效开关」。全部零 sim 改动。
+
+- `save/storage.ts` — `SaveData` 新增 `sfxMuted: boolean`（默认 false）；`loadSave` 宽容合并（缺字段/垃圾类型回落 false），**`SAVE_VERSION` 保持 1**——升版本会清掉全部现有存档，为加一个字段清空进度不成比例。
+- `render/menu/layout.ts` — 新增 `menuToggleRects`（两开关并排，位于关卡行与重置按钮之间）、`SPEED_CYCLE` / `nextSpeed`（1x→2x→4x 循环，未知值回落 1x）、`speedToggleLabel` / `sfxToggleLabel`；`menuPanelRect` 的 contentH 计入 toggle 行（否则重置按钮与开关重叠——已由测试抓住）。配 8 条新测试。
+- `render/scenes/MenuScene.ts` — `buildToggle(rect, nextSave, label)`：点击 → 存档写回 → 标签从存档重取（**标签永不缓存**，label0 缺陷的教训）。开关数值永远以存档为单一真相。
+- `render/scenes/BattleScene.ts` — 静音门改为 `setMuted(saveData.sfxMuted || paused || decided)`（调用点 OR 合并，`AudioManager` 零改动）；`create()` 的开局静音从硬编码 `false` 改为读存档偏好（否则会覆盖菜单里关掉的音效）。
+- `i18n/zh-CN.ts` — 新键 `menu.speedPref` / `menu.sfxPref` / `menu.sfxOn` / `menu.sfxOff`。
+- spec §8.4.6 M7b 修订。
+
+### M7b 的关键设计（容易忘的）
+
+- **偏好 ≠ 瞬态门。** `AudioManager.setMuted` 是每帧重设的瞬态开关（暂停/结算用），用户偏好只存在于存档。两者在唯一调用点 OR 合并——给 AudioManager 加「偏好」概念是双状态复杂化，明确不做。
+- **加字段不升版本。** `loadSave` 本来就是逐字段宽容合并；`SAVE_VERSION` 升级 = 整包丢弃 = 清空玩家进度。
+- **`nextSpeed` 对未知值回落 1x**（不是「下一个」）：垃圾存档值不在循环里，最安全的恢复是默认值，不是猜测。
+- **开关标签点击后从存档重取**，不本地缓存布尔值——与 M5b 的 `label0` 缓存缺陷同族。
+
+## M7 已交付（训练进度条 + 关卡选择菜单）：①第三关人口上限太快到 ②造兵想要进度条 ③想要关卡选择菜单。**①实测是关卡设计本身**（`LEVEL_3.popCap = {player: 8, enemy: 8}`，`levels.ts:106`），保留不动（放宽需重扫 level-3 档案 + 重钉 281s 锚点，独立任务）；②③已实现，全部零 sim 改动。
 
 - `render/hud/training-progress.ts`（新）— 纯函数：`trainingProgress(world, side)`（队首 `{visible, label, fraction}`，fraction = `1 - ticksLeft/trainTime`）、`trainingBarRect(width)`（钳制不越窄视口）。读 `world.trainingQueue[side][0]` 只读 sim，配 9 条测试。
 - `render/hud/index.ts` — 资源面板下方接进度条（填充条 + 「单位名 m:ss」标签）；**队列空整组隐藏**；`destroy` 一并清理。
