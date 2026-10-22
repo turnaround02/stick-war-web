@@ -48,6 +48,13 @@ export interface MenuRow {
   enabled: boolean;
   /** Display name from the i18n table. */
   label: string;
+  /**
+   * One-line mechanic description (M8). Exists because level 1's "the enemy
+   * has NO economy" reads as a BUG to a player who never saw the data — the
+   * enemy field has no miners, so the player looked for them. The mechanics a
+   * player cannot see must be stated, not discovered.
+   */
+  description: string;
   /** True for the endless row — flagged so the scene can style it differently. */
   endless: boolean;
 }
@@ -91,6 +98,7 @@ export function menuRows(width: number, height: number, furthestLevel: number): 
       rect: { x: startX, y, w: rowW, h: MENU_LAYOUT.rowH },
       enabled: furthestLevel >= i,
       label: t(`level.${cfg.levelId}.name`),
+      description: t(`level.${cfg.levelId}.desc`),
       endless: cfg.endless === true,
     });
     y += MENU_LAYOUT.rowH + MENU_LAYOUT.rowGap;

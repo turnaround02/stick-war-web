@@ -13,6 +13,13 @@ import { createHud, type Hud } from '../hud';
 import { createResultOverlay, type ResultOverlay } from '../result';
 import { createFrontline, type Frontline } from '../frontline';
 import { shouldIgnoreClick } from '../clickGuard';
+import {
+  confirmPanelRect,
+  confirmButtonRects,
+  confirmTitle,
+  confirmYesLabel,
+  confirmNoLabel,
+} from '../confirm/layout';
 import { Selection, selectedIdsOf } from '../selection';
 import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
@@ -167,6 +174,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
         saveGame(this.saveStorage, this.saveData);
       },
       onTogglePause: () => this.togglePause(),
+      onMenu: () => this.showMenuConfirm(),
     });
     // Highlight the initial speed so the buttons do not all look inactive on load.
     this.hud.setSpeed(this.speed);
@@ -178,6 +186,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     });
 
     this.frontline = createFrontline(this);
+    this.buildMenuConfirm();
 
     this.syncStickmen();
     this.layout();
@@ -197,6 +206,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       this.hud.destroy();
       this.result.destroy();
       this.frontline.destroy();
+      for (const o of this.menuConfirm.all) o.destroy();
       this.audio.destroy();
     });
 
@@ -219,6 +229,106 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
   /** Returns to the level-select menu (M7). The menu re-reads the save. */
   private goToMenu(): void {
     this.scene.start('Menu');
+  }
+
+  // ── In-game "return to menu?" confirm (M8) ────────────────────────
+  // Returning discards the running match (no in-progress state is stored),
+  // so the HUD's menu button opens this guard instead of acting directly.
+
+  /** True while the confirm overlay is showing; blocks pause/tick underneath. */
+  private menuConfirmOpen = false;
+  private menuConfirm!: {
+    dim: Phaser.GameObjects.Rectangle;
+    panel: Phaser.GameObjects.Rectangle;
+    title: Phaser.GameObjects.Text;
+    yes: { rect: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text };
+    no: { rect: Phaser.GameObjects.Rectangle; label: Phaser.GameObjects.Text };
+    /** Everything that shows/hides/destroys together. */
+    all: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text>;
+  };
+
+  /** Builds the (hidden) overlay once per scene instance. */
+  private buildMenuConfirm(): void {
+    const OVERLAY_DEPTH = 2000;
+    const dim = this.add
+      .rectangle(0, 0, 0, 0, 0x000000, 0.6)
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH)
+      .setVisible(false)
+      .setInteractive(); // swallow clicks over the battlefield
+
+    const panel = this.add
+      .rectangle(0, 0, 0, 0, 0x141821, 0.96)
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH + 1)
+      .setVisible(false);
+
+    const title = this.add
+      .text(0, 0, '', { fontFamily: 'monospace', fontSize: '16px', color: '#e8edf4' })
+      .setOrigin(0.5)
+      .setScrollFactor(0)
+      .setDepth(OVERLAY_DEPTH + 2)
+      .setVisible(false);
+
+    const makeButton = (color: number, onClick: () => void) => {
+      const rect = this.add
+        .rectangle(0, 0, 10, 10, color)
+        .setScrollFactor(0)
+        .setDepth(OVERLAY_DEPTH + 2)
+        .setInteractive({ useHandCursor: true })
+        .setVisible(false);
+      rect.on('pointerdown', onClick);
+      const label = this.add
+        .text(0, 0, '', { fontFamily: 'monospace', fontSize: '15px', color: '#e8edf4' })
+        .setOrigin(0.5)
+        .setScrollFactor(0)
+        .setDepth(OVERLAY_DEPTH + 3)
+        .setVisible(false);
+      return { rect, label };
+    };
+
+    const yes = makeButton(0x7a3b3b, () => this.goToMenu());
+    const no = makeButton(0x2f3a4a, () => this.hideMenuConfirm());
+
+    this.menuConfirm = {
+      dim,
+      panel,
+      title,
+      yes,
+      no,
+      all: [dim, panel, title, yes.rect, yes.label, no.rect, no.label],
+    };
+  }
+
+  private showMenuConfirm(): void {
+    this.menuConfirmOpen = true;
+    const { width, height } = this.scale;
+    for (const o of this.menuConfirm.all) o.setVisible(true);
+    this.menuConfirm.title.setText(confirmTitle());
+
+    const p = confirmPanelRect(width, height);
+    this.menuConfirm.panel.setPosition(p.x + p.w / 2, p.y + p.h / 2);
+    this.menuConfirm.panel.setSize(p.w, p.h);
+    this.menuConfirm.dim.setSize(width, height);
+    this.menuConfirm.title.setPosition(p.x + p.w / 2, p.y + 46);
+
+    const b = confirmButtonRects(width, height);
+    this.menuConfirm.yes.rect.setPosition(b.yes.x + b.yes.w / 2, b.yes.y + b.yes.h / 2);
+    this.menuConfirm.yes.rect.setSize(b.yes.w, b.yes.h);
+    this.menuConfirm.yes.label
+      .setPosition(b.yes.x + b.yes.w / 2, b.yes.y + b.yes.h / 2)
+      .setText(confirmYesLabel());
+    this.menuConfirm.no.rect.setPosition(b.no.x + b.no.w / 2, b.no.y + b.no.h / 2);
+    this.menuConfirm.no.rect.setSize(b.no.w, b.no.h);
+    this.menuConfirm.no.label
+      .setPosition(b.no.x + b.no.w / 2, b.no.y + b.no.h / 2)
+      .setText(confirmNoLabel());
+  }
+
+  private hideMenuConfirm(): void {
+    this.menuConfirmOpen = false;
+    for (const o of this.menuConfirm.all) o.setVisible(false);
   }
 
   /** The label for the "next" button: another level, or back to the start. */
@@ -297,10 +407,12 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
    * One method for both the Space key and the button, so the two can never
    * disagree about whether the game is paused. A decided match ignores it: the
    * result overlay IS the paused state, and toggling underneath it would let the
-   * player resume a finished game.
+   * player resume a finished game. The menu confirm overlay owns the screen
+   * while it is up, so Space must not toggle underneath it either.
    */
   private togglePause(): void {
     if (this.world.outcome !== 'ongoing') return;
+    if (this.menuConfirmOpen) return;
     this.paused = !this.paused;
     this.hud.setPaused(this.paused);
   }
@@ -386,9 +498,12 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     // A decided match stops advancing too (spec §6.6). Continuing would make
     // "the final state" depend on how long the player took to click, and at 4x
     // would let the winner mop up a corpse army for no reason.
+    //
+    // The menu confirm overlay freezes the sim too: it is the paused state for
+    // as long as it is up, so the match cannot slip away behind the dialog.
     const decided = this.world.outcome !== 'ongoing';
     const ticks =
-      this.paused || decided
+      this.paused || decided || this.menuConfirmOpen
         ? 0
         : advanceWorld(this.timestep, this.world, delta, this.speed, () => this.commands.drain());
     this.elapsedTicks += ticks;

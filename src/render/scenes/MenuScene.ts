@@ -108,7 +108,7 @@ export class MenuScene extends Phaser.Scene {
     });
   }
 
-  /** One level row: a button (locked rows render grey and inert). */
+  /** One level row: a button with the level name, and its mechanic description under it. */
   private buildRow(row: MenuRow): void {
     const cx = row.rect.x + row.rect.w / 2;
     const cy = row.rect.y + row.rect.h / 2;
@@ -119,7 +119,11 @@ export class MenuScene extends Phaser.Scene {
       .rectangle(cx, cy, row.rect.w, row.rect.h, color)
       .setDepth(11);
     this.add
-      .text(cx, cy, row.label, { fontFamily: FONT, fontSize: '17px', color: labelColor })
+      .text(cx, cy - 9, row.label, { fontFamily: FONT, fontSize: '17px', color: labelColor })
+      .setOrigin(0.5)
+      .setDepth(12);
+    this.add
+      .text(cx, cy + 11, row.description, { fontFamily: FONT, fontSize: '11px', color: TEXT_DIM })
       .setOrigin(0.5)
       .setDepth(12);
 

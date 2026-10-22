@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   layoutPauseButton,
+  layoutMenuButton,
+  menuLabel,
   pauseLabel,
   speedLabel,
   layoutTrainButtons,
@@ -11,6 +13,7 @@ import {
   trainButtonState,
   waveText,
   PAUSE_BUTTON,
+  MENU_BUTTON,
   SPEED_BUTTON,
   STANCE_BUTTONS,
   type HudMetrics,
@@ -20,6 +23,7 @@ import { SPEED_STEPS } from '../timestep';
 import { createWorld } from '../../sim/createWorld';
 import { DEFAULT_MATCH } from '../../data/levels';
 import { t } from '../../i18n';
+import { shouldIgnoreClick } from '../clickGuard';
 
 const metrics: HudMetrics = {
   buttonW: 108,
@@ -290,6 +294,52 @@ describe('pause button', () => {
   it('reads Pause while running and Resume while paused', () => {
     expect(pauseLabel(false)).toBe('暂停');
     expect(pauseLabel(true)).toBe('继续');
+  });
+});
+
+describe('in-game menu button (M8)', () => {
+  it('sits to the LEFT of the pause button on the same row', () => {
+    for (const width of [640, 1280, 1920]) {
+      const menu = layoutMenuButton(width, metrics);
+      const pause = layoutPauseButton(width, metrics);
+      expect(menu.x + menu.w, `width ${width}`).toBeLessThanOrEqual(pause.x);
+      expect(menu.y, `width ${width}`).toBe(pause.y);
+      expect(menu.h, `width ${width}`).toBe(pause.h);
+    }
+  });
+
+  it('leaves a positive gap to the pause button', () => {
+    for (const width of [640, 1280, 1920]) {
+      const menu = layoutMenuButton(width, metrics);
+      const pause = layoutPauseButton(width, metrics);
+      expect(pause.x - (menu.x + menu.w), `width ${width}`).toBeGreaterThan(0);
+    }
+  });
+
+  it('stays inside the viewport at narrow widths', () => {
+    const menu = layoutMenuButton(640, metrics);
+    expect(menu.x).toBeGreaterThanOrEqual(0);
+    expect(menu.x + menu.w).toBeLessThanOrEqual(640);
+  });
+
+  it('uses the dimensions the renderer is told to draw', () => {
+    const menu = layoutMenuButton(1280, metrics);
+    expect(menu.w).toBe(MENU_BUTTON.w);
+    expect(menu.h).toBe(MENU_BUTTON.h);
+  });
+
+  it('is labeled 菜单', () => {
+    expect(menuLabel()).toBe('菜单');
+  });
+
+  it('remains inside the click-guard reserved top-right region', () => {
+    // The guard reserves the right 240px of the top strip; the menu button is
+    // the leftmost of the top-right cluster, so a click on it must be ignored
+    // by unit selection rather than treated as a battlefield click.
+    const menu = layoutMenuButton(1280, metrics);
+    // Click at the menu button's left edge — the point furthest from the
+    // reserved corner. If even THAT is reserved, the whole button is.
+    expect(shouldIgnoreClick(menu.x + 2, menu.y + 2, 1280, 720)).toBe(true);
   });
 });
 

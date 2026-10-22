@@ -81,6 +81,21 @@ describe('menuRows', () => {
     expect(rows[0]!.label).toBe('第一关');
     expect(rows[rows.length - 1]!.label).toBe('无尽模式');
   });
+
+  it('describes each level from the i18n table', () => {
+    // M8: the description states what the player cannot see in-game — most
+    // importantly level 1's "enemy has NO economy", which read as a bug.
+    const rows = menuRows(1280, 720, 3);
+    expect(rows[0]!.description).toContain('没有经济');
+    expect(rows[rows.length - 1]!.description).toContain('撑');
+  });
+
+  it('every description differs from its raw key (guard against missing i18n)', () => {
+    for (const row of menuRows(1280, 720, 3)) {
+      const cfg = LEVELS[row.levelIndex];
+      expect(row.description).not.toBe(`level.${cfg.levelId}.desc`);
+    }
+  });
 });
 
 describe('menuAuxRect', () => {

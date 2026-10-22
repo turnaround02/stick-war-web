@@ -39,6 +39,17 @@ export const STANCE_BUTTONS: readonly { stance: Stance; key: string }[] = [
   { stance: 'retreat', key: 'ui.retreatAll' },
 ];
 
+/**
+ * The metrics the scene draws the HUD with.
+ *
+ * LIVES HERE, not in `index.ts` (M8): the click guard derives the top-right
+ * reserve from the button cluster, and importing from `index.ts` would drag
+ * the Phaser renderer into a pure-arithmetic module — ESM resolves that as
+ * `undefined`, which is exactly how the first attempt shipped a silent
+ * `metrics.gap` crash. Layout owns the numbers; the renderer imports them.
+ */
+export const HUD_METRICS: HudMetrics = { buttonW: 108, buttonH: 44, gap: 8, barHeight: 64 };
+
 const SIDE_PADDING = 16;
 const SPEED_BUTTON_W = 52;
 const SPEED_BUTTON_H = 30;
@@ -47,6 +58,9 @@ const SPEED_TOP = 14;
 const PAUSE_BUTTON_W = 64;
 /** Same height as the speed buttons, so the top-right row lines up. */
 const PAUSE_BUTTON_H = SPEED_BUTTON_H;
+/** Same row, left of the pause button: returns to the level menu (M8). */
+const MENU_BUTTON_W = 64;
+const MENU_BUTTON_H = SPEED_BUTTON_H;
 
 /** The resource readout: gold and population against the cap. */
 export function resourceText(world: World, side: Side): string {
@@ -155,6 +169,11 @@ export function pauseLabel(paused: boolean): string {
   return t(paused ? 'ui.resume' : 'ui.pause');
 }
 
+/** The in-game menu button's label (M8). Static — the action never changes. */
+export function menuLabel(): string {
+  return t('ui.menu');
+}
+
 /**
  * A speed button's label, e.g. `1x`.
  *
@@ -185,6 +204,25 @@ export function layoutPauseButton(width: number, metrics: HudMetrics): HudRect {
 
 /** Pause-button dimensions, so the renderer cannot silently disagree with the layout. */
 export const PAUSE_BUTTON = { w: PAUSE_BUTTON_W, h: PAUSE_BUTTON_H } as const;
+
+/**
+ * The in-game menu button, immediately left of the pause button (M8).
+ *
+ * Derived from the pause layout the same way pause is derived from the speed
+ * group — one chain, no independent coordinates, no possible overlap.
+ */
+export function layoutMenuButton(width: number, metrics: HudMetrics): HudRect {
+  const pause = layoutPauseButton(width, metrics);
+  return {
+    x: Math.max(0, pause.x - MENU_BUTTON_W - metrics.gap),
+    y: pause.y,
+    w: MENU_BUTTON_W,
+    h: MENU_BUTTON_H,
+  };
+}
+
+/** Menu-button dimensions, exported for the same reason as PAUSE_BUTTON. */
+export const MENU_BUTTON = { w: MENU_BUTTON_W, h: MENU_BUTTON_H } as const;
 
 /**
  * The x where the speed cluster's header text should sit.

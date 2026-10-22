@@ -35,6 +35,8 @@ export const ZH_CN: Record<string, string> = {
   'ui.speed': '速度',
   'ui.pause': '暂停',
   'ui.resume': '继续',
+  // In-game menu button (M8)
+  'ui.menu': '菜单',
 
   // Result overlay
   'result.win': '胜利',
@@ -61,4 +63,17 @@ export const ZH_CN: Record<string, string> = {
   'level.level-2.name': '第二关',
   'level.level-3.name': '第三关',
   'level.endless.name': '无尽模式',
+
+  // One-line mechanic descriptions, shown under each menu row (M8).
+  // These state what a player CANNOT see: level 1's enemy has no economy
+  // (no enemy miners exist, by design), so it must be said, not discovered.
+  'level.level-1.desc': '敌方没有经济——顶住波次攻势',
+  'level.level-2.desc': '对称经济战——摧毁敌方基地',
+  'level.level-3.desc': '12人口精锐战——敌方更强，拆掉基地',
+  'level.endless.desc': '敌方无经济，波次无限增强——看你能撑几波',
+
+  // In-game "return to menu?" confirm (M8). Returning discards the match.
+  'confirm.menu.title': '返回菜单？进行中的对局将丢失',
+  'confirm.menu.yes': '确认',
+  'confirm.menu.no': '取消',
 };

@@ -32,6 +32,16 @@ describe('level name keys', () => {
       expect(t(key), `missing translation for ${key}`).not.toBe(key);
     }
   });
+
+  it('has a level.<id>.desc for EVERY level in LEVELS', () => {
+    // M8 guard rail: the menu shows a mechanic description under each row.
+    // A missing key would render the raw key as the "description" — exactly
+    // the class of omission that hid level 1's no-economy design for months.
+    for (const level of LEVELS) {
+      const key = `level.${level.levelId}.desc`;
+      expect(t(key), `missing translation for ${key}`).not.toBe(key);
+    }
+  });
 });
 
 describe('M5b additions', () => {

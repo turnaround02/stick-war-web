@@ -99,6 +99,7 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M7 训练进度条 + 关卡选择菜单**（已合并至 `master`，**825 tests**）
 - [x] **M7b 菜单偏好开关**（已合并至 `master`，**836 tests**；速度偏好 + 音效开关持久化）
 - [x] **M7c 关卡 3 人口放宽**（已合并至 `master`，**837 tests**；popCap 8→12，锚点 281→280 重钉）
+- [x] **M8 菜单说明 + 对局中菜单键 + 部署**（**854 tests**；关卡 `.desc` 文案、HUD 菜单键 + 确认浮层、clickGuard 布局推导、GitHub 仓库已建并 push）
 
 ## M6.4 已交付
 
@@ -144,6 +145,27 @@ M7 推迟的两项：菜单加「速度偏好」+「音效开关」。全部零 
 - **第三关人口 8 是设计不是缺陷**：`canQueue` 把「在场 + 队列 pending + 新单位」一起对 `popCap` 校验（`training.ts:38-43`），8 人口 = 最多 2 巨人（pop 3）或 8 普通兵。放宽是关卡设计任务，必须走「重扫档案 + 重钉锚点」流程。
 - **「重置进度」只在有进度时出现**（`canResetProgress(furthestLevel, endlessBestWave)`）——对全新存档显示重置是无意义操作。
 - **MenuScene 点击行的种子是 `CAMPAIGN_SEED`**：与旧 BootScene 恢复路径相同种子，同关同表现，确定性不因菜单入口而破坏。
+
+## M8 已交付（菜单关卡说明 + 对局中菜单键 + 部署上线）
+
+用户验收反馈：巨人 ✓、12 人口节奏 ✓；两件新事——①第一关看不到敌方矿工（被误读为 bug）②对局中无法回菜单。部署随本轮上线。
+
+- **关卡 1「看不到敌方矿工」实测为设计**：`LEVEL_1.startMiners = {player: 3, enemy: 0}` + `enemyAi: 'scripted'`——敌方无经济是教学设计（spec §8.4），场上根本没有敌方矿工可看。修法不是改关卡，是**把机制说出来**。
+- `render/menu/layout.ts` — `MenuRow` 新增 `description`（取 `level.<id>.desc` 键）；`MenuScene.buildRow` 在行名下方画灰色小字。**机制必须被告知，不是被猜出**。
+- `i18n/locale.test.ts` — 新护栏：每个 `LEVELS` 成员必须有 `level.<id>.desc`（与 `.name` 护栏同形——缺键会渲染出裸键名）。
+- `render/hud/layout.ts` — `layoutMenuButton`（菜单键，暂停键左侧，同链推导）+ `menuLabel()` + **`HUD_METRICS` 从 `index.ts` 迁入**（见下）；`index.ts` 复导出保兼容。
+- `render/clickGuard.ts` — 右上保留区从**硬编码 240px**改为**按钮簇实际布局**（菜单键左缘）。菜单键把 1280 宽下的簇左缘推到 x=948，旧守卫 1040 边界外——「点菜单键」会穿透成「选中 900px 外的单位」，测试抓住后改为布局推导，未来簇内加按钮守卫自动变宽。
+- `render/confirm/layout.ts`（新）— 「返回菜单？」确认浮层的纯几何 + 文案，配 8 条测试。
+- `BattleScene` — HUD 菜单键 → 确认浮层（确认 = `scene.start('Menu')`，取消 = 关闭）；浮层打开期间**对局冻结**（等效暂停）+ 空格不穿透 + 背景可交互吞点击。
+- `i18n/zh-CN.ts` — `ui.menu`、`level.*.desc` ×4、`confirm.menu.*` ×3。
+- **部署上线**：`gh repo create turnaround02/stick-war-web` + `git push`；启用 Pages (GitHub Actions 源) 后 `deploy.yml` 工件流自动发布。
+
+### M8 的关键设计（容易忘的）
+
+- **「看不见的机制必须写出来」**：敌方无经济（关卡 1）、只能战败（无尽）都是数据层事实，玩家无从观察——菜单行说明是它们的唯一表达通道。加关卡时 `.name` 与 `.desc` 两个键都必须登记（两条护栏测试各守一个）。
+- **`HUD_METRICS` 必须住在 `layout.ts`**：clickGuard 从按钮簇推导保留区，若从 `index.ts`（Phaser 渲染器）import，ESM 互操作下解析为 `undefined`，运行时炸在 `metrics.gap`——首次实测即中。**纯算术模块不得依赖渲染器模块**，这是铁律 #7 的一个新变体。
+- **点击守卫保留区 = 布局推导，不是常数**：右上角每加一个按钮，守卫必须自动变宽。硬编码的 `cornerW: 240` 曾在菜单键加入后立即失效（948 < 1040 边界外 92px）。
+- **确认浮层的对象类型**：`all` 数组用 `Array<Rectangle | Text>`（有 `setVisible`/`destroy`），不是 `GameObject`（没有 `setVisible`，tsc 抓）。
 
 ## M7c 已交付（关卡 3 人口放宽）
 

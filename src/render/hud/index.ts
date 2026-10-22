@@ -16,20 +16,23 @@ import { UNITS } from '../../data/units';
 import { SPEED_STEPS, type GameSpeed } from '../timestep';
 import {
   layoutPauseButton,
+  layoutMenuButton,
   layoutSpeedButtons,
   layoutStanceButtons,
   layoutTrainButtons,
   pauseLabel,
+  menuLabel,
   resourceText,
   speedHeaderRight,
   speedLabel,
   trainButtonState,
   waveText,
   PAUSE_BUTTON,
+  MENU_BUTTON,
   SPEED_BUTTON,
   STANCE_BUTTONS,
   TRAINABLE,
-  type HudMetrics,
+  HUD_METRICS,
 } from './layout';
 import { trainingProgress, trainingBarRect } from './training-progress';
 import type { Side, Stance, UnitTypeId, World } from '../../sim/types';
@@ -46,7 +49,9 @@ const REASON_COLOR = '#e08a8a';
 const BAR_DEPTH = 900;
 const TEXT_DEPTH = 902;
 
-export const HUD_METRICS: HudMetrics = { buttonW: 108, buttonH: 44, gap: 8, barHeight: 64 };
+// Layout owns the metrics (the click guard derives geometry from them);
+// re-exported so existing `import { HUD_METRICS } from '../hud'` keeps working.
+export { HUD_METRICS } from './layout';
 
 export interface Hud {
   sync(world: World): void;
@@ -63,6 +68,8 @@ export interface HudCallbacks {
   onStance(stance: Stance): void;
   onSpeedChange(speed: GameSpeed): void;
   onTogglePause(): void;
+  /** Returns to the level-select menu, after the scene's own confirm overlay. */
+  onMenu(): void;
 }
 
 /**
@@ -171,6 +178,8 @@ export function createHud(
   // ── Pause button (left of the speed group) ────────────────────────
   const pauseButton = makeButton(PAUSE_BUTTON.w, PAUSE_BUTTON.h, () => callbacks.onTogglePause());
   pauseButton.reason.setVisible(false);
+  const menuButton = makeButton(MENU_BUTTON.w, MENU_BUTTON.h, () => callbacks.onMenu());
+  menuButton.reason.setVisible(false);
   const speedHeader = scene.add
     .text(0, 0, t('ui.speed'), { fontFamily: FONT, fontSize: '13px', color: TEXT_LIGHT })
     .setOrigin(1, 0.5)
@@ -216,6 +225,11 @@ export function createHud(
       pauseButton.rect.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
       pauseButton.label.setPosition(pr.x + pr.w / 2, pr.y + pr.h / 2);
 
+      const mr = layoutMenuButton(width, metrics);
+      menuButton.rect.setSize(mr.w, mr.h);
+      menuButton.rect.setPosition(mr.x + mr.w / 2, mr.y + mr.h / 2);
+      menuButton.label.setPosition(mr.x + mr.w / 2, mr.y + mr.h / 2);
+
       // The header sits just left of the pause button, from the same layout
       // data that positions the button — computing it here is what previously
       // let the text land inside the pause rectangle.
@@ -251,6 +265,7 @@ export function createHud(
       // cached label0 never followed a locale change (spec §7.5.1). The strings
       // are static, so this is a cheap setText with no visible cost.
       for (const b of stanceButtons) b.label.setText(t(b.key));
+      menuButton.label.setText(menuLabel());
 
       // Training progress: the head order's remaining time and a filling bar.
       // Label rides above the bar so both move together on resize.
@@ -282,6 +297,8 @@ export function createHud(
       pauseButton.rect.setFillStyle(paused ? BUTTON_ACTIVE : BUTTON_ON);
     },
 
+    // The menu button's label is set by the first sync (see sync()), so it
+    // follows the active locale rather than a value frozen at construction.
     destroy(): void {
       resourceBg.destroy();
       resourceText_.destroy();
@@ -290,7 +307,7 @@ export function createHud(
       trainLabel.destroy();
       barBg.destroy();
       speedHeader.destroy();
-      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton]) {
+      for (const b of [...trainButtons, ...stanceButtons, ...speedButtons, pauseButton, menuButton]) {
         b.rect.destroy();
         b.label.destroy();
         b.reason.destroy();
