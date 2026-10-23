@@ -260,13 +260,24 @@ describe('pause button', () => {
    */
   it('leaves room for the "速度" header between itself and the viewport edge', () => {
     for (const width of [640, 1280, 1920]) {
-      const pause = layoutPauseButton(width, metrics);
+      const menu = layoutMenuButton(width, metrics);
       const headerRight = speedHeaderRight(width, metrics);
       // The header is right-aligned at headerRight, so its text must fit in the
-      // space to the LEFT of the pause button.
-      expect(headerRight, `width ${width}`).toBeLessThanOrEqual(pause.x);
-      expect(headerRight, `width ${width}`).toBeGreaterThanOrEqual(0);
+      // space to the LEFT of the MENU button (the cluster's leftmost button).
+      expect(headerRight, `width ${width}`).not.toBeNull();
+      expect(headerRight!, `width ${width}`).toBeLessThanOrEqual(menu.x);
+      expect(headerRight!, `width ${width}`).toBeGreaterThanOrEqual(0);
     }
+  });
+
+  it('returns null for the header on a narrow viewport instead of overlapping (M8b)', () => {
+    // At 532px the header sat at menu.x - gap ≈ 259, INSIDE the 240px resource
+    // reserve and under the menu button's label — three texts on one spot, seen
+    // live on the deployed site. The layout must refuse, not misplace.
+    expect(speedHeaderRight(532, metrics)).toBeNull();
+    expect(speedHeaderRight(600, metrics)).toBeNull();
+    // Comfortably wide viewports still get one.
+    expect(speedHeaderRight(1024, metrics)).not.toBeNull();
   });
 
   it('leaves a gap between the pause button and the first speed button', () => {

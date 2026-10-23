@@ -63,19 +63,32 @@ describe('trainingProgress', () => {
 
 describe('trainingBarRect', () => {
   it('sits at the fixed HUD slot on a normal viewport', () => {
-    const r = trainingBarRect(1280);
+    const r = trainingBarRect(1280, false);
     expect(r.x).toBe(TRAINING_BAR.x);
-    expect(r.y).toBe(TRAINING_BAR.y);
     expect(r.w).toBe(TRAINING_BAR.w);
   });
 
+  it('sits one line lower when the endless wave line is shown', () => {
+    // The wave line occupies y≈64..78; the bar must not stack onto it.
+    const campaign = trainingBarRect(1280, false);
+    const endless = trainingBarRect(1280, true);
+    expect(endless.y).toBeGreaterThan(campaign.y);
+  });
+
+  it('stays below the tick label on every viewport', () => {
+    // The tick label row spans y≈44..57; the bar must start below it.
+    for (const wave of [false, true]) {
+      expect(trainingBarRect(1280, wave).y).toBeGreaterThan(57);
+    }
+  });
+
   it('shrinks rather than overflowing a narrow viewport', () => {
-    const r = trainingBarRect(120);
+    const r = trainingBarRect(120, false);
     expect(r.x + r.w).toBeLessThanOrEqual(120);
     expect(r.w).toBeGreaterThanOrEqual(0);
   });
 
   it('never has a negative width', () => {
-    expect(trainingBarRect(10).w).toBe(0);
+    expect(trainingBarRect(10, false).w).toBe(0);
   });
 });

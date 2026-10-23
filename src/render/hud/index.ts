@@ -230,10 +230,13 @@ export function createHud(
       menuButton.rect.setPosition(mr.x + mr.w / 2, mr.y + mr.h / 2);
       menuButton.label.setPosition(mr.x + mr.w / 2, mr.y + mr.h / 2);
 
-      // The header sits just left of the pause button, from the same layout
-      // data that positions the button — computing it here is what previously
-      // let the text land inside the pause rectangle.
-      speedHeader.setPosition(speedHeaderRight(width, metrics), pr.y + pr.h / 2);
+      // The header sits left of the menu button — but ONLY when a narrow
+      // viewport still leaves room for it. `speedHeaderRight` returns null
+      // below that floor; rendering it anyway stacked three texts on one spot
+      // (M8b live-site bug). The buttons self-label, so hiding loses nothing.
+      const headerX = speedHeaderRight(width, metrics);
+      speedHeader.setVisible(headerX !== null);
+      if (headerX !== null) speedHeader.setPosition(headerX, pr.y + pr.h / 2);
 
       barBg.clear();
       barBg.fillStyle(BG_COLOR, BG_ALPHA);
@@ -268,12 +271,13 @@ export function createHud(
       menuButton.label.setText(menuLabel());
 
       // Training progress: the head order's remaining time and a filling bar.
-      // Label rides above the bar so both move together on resize.
+      // Label rides above the bar so both move together on resize. The bar's
+      // y derives from the wave line's visibility so the two never stack.
       const prog = trainingProgress(world, side);
       trainLabel.setVisible(prog.visible).setText(prog.label);
       trainBar.clear();
       if (prog.visible) {
-        const rect = trainingBarRect(scene.scale.width);
+        const rect = trainingBarRect(scene.scale.width, wave !== '');
         trainBar.fillStyle(BG_COLOR, 0.9);
         trainBar.fillRect(rect.x - 1, rect.y - 1, rect.w + 2, rect.h + 2);
         trainBar.fillStyle(BUTTON_ACTIVE, 1);

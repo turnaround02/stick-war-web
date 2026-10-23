@@ -66,13 +66,30 @@ export interface TrainingBarRect {
 }
 
 /** Fixed HUD geometry for the training bar. */
-export const TRAINING_BAR = { x: 22, y: 66, w: 180, h: 10 } as const;
+export const TRAINING_BAR = { x: 22, h: 10, w: 180, gap: 8 } as const;
+
+/**
+ * The bar's y, below the resource panel's SECOND line.
+ *
+ * M8b: this used to be a fixed `y: 66`, which collided with the tick label
+ * (y=44, two text lines tall) and the wave line on narrow viewports. The y is
+ * now DERIVED from the rows above it: resource text (y≈20, ~16px), tick label
+ * (y=44, ~13px), wave line (y=64, ~14px when shown) — the bar goes under the
+ * deepest of them plus a gap. The caller passes whether the wave line shows
+ * (endless only), so a campaign level sits one line higher.
+ *
+ * @param waveVisible whether the endless wave line is currently shown
+ */
+export function trainingBarY(waveVisible: boolean): number {
+  // resource line ~12..32, tick label 44..57, wave 64..78 (measured text sizes).
+  return waveVisible ? 84 : 64;
+}
 
 /** The bar's rect, clamped so it can never run off a narrow viewport. */
-export function trainingBarRect(width: number): TrainingBarRect {
+export function trainingBarRect(width: number, waveVisible: boolean): TrainingBarRect {
   return {
     x: TRAINING_BAR.x,
-    y: TRAINING_BAR.y,
+    y: trainingBarY(waveVisible),
     w: Math.max(0, Math.min(TRAINING_BAR.w, width - TRAINING_BAR.x - 12)),
     h: TRAINING_BAR.h,
   };

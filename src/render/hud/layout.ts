@@ -225,13 +225,23 @@ export function layoutMenuButton(width: number, metrics: HudMetrics): HudRect {
 export const MENU_BUTTON = { w: MENU_BUTTON_W, h: MENU_BUTTON_H } as const;
 
 /**
- * The x where the speed cluster's header text should sit.
+ * The x where the speed cluster's header text should sit, or null when there
+ * is no room for it.
  *
- * Exported because the header is drawn by the renderer while the buttons are
- * positioned from the layout; computing it in one place is what keeps the text
- * out of the pause button's rectangle.
+ * M8b: the header previously sat at `menu.x - gap` unconditionally. A narrow
+ * viewport (menu.x ≈ 267 at 532px wide) pushed the two-character header into
+ * the top-left resource readout AND under the menu button's label — three
+ * texts stacked on one spot. The rule now: the header only renders if the
+ * space between the resource reserve (240px) and the menu button can hold it
+ * with breathing room; otherwise the caller hides it (the speed buttons are
+ * self-labelling "1x/2x/4x", so the header is a nicety, not information).
  */
-export function speedHeaderRight(width: number, metrics: HudMetrics): number {
-  const pause = layoutPauseButton(width, metrics);
-  return pause.x - metrics.gap;
+export function speedHeaderRight(width: number, metrics: HudMetrics): number | null {
+  const menu = layoutMenuButton(width, metrics);
+  const x = menu.x - metrics.gap;
+  // 240 = the top-left resource reserve (CLICK_GUARD.cornerW). Keeping them
+  // decoupled by value here is fine: the guard is a screen-space constant and
+  // this module must not import render-side modules (iron rule #7 variant).
+  const RESOURCE_RESERVE = 240;
+  return x - RESOURCE_RESERVE >= 48 ? x : null;
 }
