@@ -21,7 +21,7 @@ describe('shouldIgnoreClick', () => {
   it('ignores the top-CENTRE frontline indicator', () => {
     // The indicator is top-centre and 40% wide. The old guard only reserved
     // left/right 240px, so a click here leaked through and (de)selected units.
-    const panel = frontlinePanelRect(W, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(W, FRONTLINE_METRICS).rect;
     const cx = panel.x + panel.w / 2;
     expect(shouldIgnoreClick(cx, panel.y + 5, W, H)).toBe(true);
   });
@@ -31,13 +31,13 @@ describe('shouldIgnoreClick', () => {
   });
 
   it('does NOT ignore a point just below the indicator', () => {
-    const panel = frontlinePanelRect(W, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(W, FRONTLINE_METRICS).rect;
     // A pixel below the panel is playable field, not indicator.
     expect(shouldIgnoreClick(panel.x + panel.w / 2, panel.y + panel.h + 20, W, H)).toBe(false);
   });
 
   it('does NOT ignore a point left of the indicator but right of the corner', () => {
-    const panel = frontlinePanelRect(W, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(W, FRONTLINE_METRICS).rect;
     // Between the reserved corner (240) and the panel's left edge.
     const x = CLICK_GUARD.cornerW + 1;
     if (x < panel.x) expect(shouldIgnoreClick(x, 20, W, H)).toBe(false);
@@ -45,7 +45,7 @@ describe('shouldIgnoreClick', () => {
 
   it('reserves the indicator even when the viewport is narrow', () => {
     const narrowW = 400;
-    const panel = frontlinePanelRect(narrowW, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(narrowW, FRONTLINE_METRICS).rect;
     expect(shouldIgnoreClick(panel.x + panel.w / 2, panel.y + 5, narrowW, H)).toBe(true);
   });
 

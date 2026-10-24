@@ -17,7 +17,7 @@
  */
 
 import { FRONTLINE_METRICS, frontlinePanelRect, type FrontlineMetrics } from './frontline/layout';
-import { layoutMenuButton, HUD_METRICS } from './hud/layout';
+import { layoutMenuButton, RESOURCE_RESERVE_X, HUD_METRICS } from './hud/layout';
 
 export interface ClickGuardConfig {
   /** Width of the reserved top-left corner (resource bar). */
@@ -29,7 +29,7 @@ export interface ClickGuardConfig {
 }
 
 export const CLICK_GUARD: ClickGuardConfig = {
-  cornerW: 240,
+  cornerW: RESOURCE_RESERVE_X,
   topH: 56,
   hudH: 64,
 };
@@ -70,7 +70,7 @@ export function shouldIgnoreClick(
     if (x <= guard.cornerW) return true;
     if (x >= topRightReserveX(width)) return true;
 
-    const panel = frontlinePanelRect(width, metrics);
+    const panel = frontlinePanelRect(width, metrics).rect;
     if (x >= panel.x && x <= panel.x + panel.w && y >= panel.y && y <= panel.y + panel.h) {
       return true;
     }

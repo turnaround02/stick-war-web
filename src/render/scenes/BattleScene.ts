@@ -4,6 +4,7 @@ import { CAMPAIGN_SEED, LAST_CAMPAIGN_INDEX, LEVELS } from '../../data/levels';
 import { UNIT_TICKS } from '../../data/unitTicks';
 import type { UnitTypeId } from '../../data/units';
 import { CommandQueue, KeyState, setStance as cmdSetStance, train as cmdTrain } from '../../input/desktop';
+import { PanTracker, PinchTracker } from '../../input/gestures';
 import { t } from '../../i18n';
 import { advanceFurthestLevel, browserStorage, loadSave, recordBestWave, saveGame, type SaveData } from '../../save/storage';
 import { createWorld } from '../../sim/createWorld';
@@ -109,6 +110,17 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
 
   /** Last known appearance per unit, so a ghost can be spawned after removal. */
   private lastTypeId = new Map<number, UnitTypeId>();
+
+  /**
+   * Touch/drag camera gestures (M9). Pointer events fire for mouse too, so a
+   * mouse drag pans as a side effect; keyboard / wheel / edge-scroll keep
+   * working exactly as before. The trackers are Phaser-free (`input/gestures`)
+   * and asserted there; here they only drive `cam.scrollX` / `setZoom`.
+   */
+  private pan = new PanTracker();
+  private pinch = new PinchTracker();
+  /** How many pointers are currently down (1 = pan candidate, 2 = pinch). */
+  private downPointers = 0;
   private lastFacing = new Map<number, 1 | -1>();
 
   constructor() {
@@ -369,8 +381,50 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
       // M5c Q4: a pointer press is also a first-input unlock.
       this.sfxUnlockEvents.push({ type: 'pointerdown' });
+
+      // M9: track multi-touch. The SECOND pointer down starts a pinch (and
+      // cancels any pan); the first one drives the pan otherwise.
+      this.downPointers += 1;
+      if (this.menuConfirmOpen) {
+        // Overlay owns the screen; still count the pointer so up/down balance.
+        return;
+      }
+      if (this.downPointers === 2) {
+        this.pinch.start(this.pointerDistance());
+        this.pan.release();
+      } else if (this.downPointers === 1) {
+        this.pan.press(p.x);
+      }
+
       this.handleClick(p);
     });
+    this.input.on('pointermove', (p: Phaser.Input.Pointer) => {
+      if (this.menuConfirmOpen) return;
+      if (this.downPointers === 2 && this.pinch.active) {
+        const delta = this.pinch.move(this.pointerDistance());
+        if (delta !== 0) {
+          const cam = this.cameras.main;
+          cam.setZoom(clampZoom(cam.zoom + delta));
+          this.clampCamera();
+        }
+        return;
+      }
+      if (this.downPointers === 1) {
+        const delta = this.pan.drag(p.x);
+        if (delta !== 0) {
+          const cam = this.cameras.main;
+          cam.setScroll(cam.scrollX + delta / cam.zoom, cam.scrollY);
+          this.clampCamera();
+        }
+      }
+    });
+    const endPointer = () => {
+      this.downPointers = Math.max(0, this.downPointers - 1);
+      if (this.downPointers < 2) this.pinch.release();
+      if (this.downPointers === 0) this.pan.release();
+    };
+    this.input.on('pointerup', endPointer);
+    this.input.on('pointerupoutside', endPointer);
     this.input.on('wheel', (_p: unknown, _o: unknown, _dx: number, dy: number) => {
       const cam = this.cameras.main;
       cam.setZoom(clampZoom(cam.zoom - dy * 0.001));
@@ -378,8 +432,24 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     });
   }
 
+  /** Current distance between the first two held pointers, or 0. */
+  private pointerDistance(): number {
+    const p1 = this.input.pointer1;
+    const p2 = this.input.pointer2;
+    if (!p1 || !p2 || !p1.isDown || !p2.isDown) return 0;
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    return Math.hypot(dx, dy);
+  }
+
   /** Selects the unit under the pointer, or clears the selection on empty ground. */
   private handleClick(pointer: Phaser.Input.Pointer): void {
+    // M9: a press that became a camera drag must not ALSO deselect. `handleClick`
+    // runs on pointerdown (before any motion), so this only matters for the
+    // *second* press of a drag that Phaser may re-report; the tracker's answer
+    // is the authority on whether this session is a drag.
+    if (this.pan.movedBeyondTap()) return;
+
     // HUD chrome and the frontline indicator own their own clicks; ignoring
     // them here stops a button press from also clearing the selection, and
     // stops a click on the top-centre indicator from (de)selecting a unit.

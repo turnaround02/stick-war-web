@@ -101,14 +101,30 @@ export function normalizeCounts(counts: readonly number[], buckets: number): num
   return out;
 }
 
-/** The top-centre panel, 40% of the viewport wide, never wider than the viewport. */
+/** Below this free-band width the indicator hides entirely — it is the only
+ * non-interactive top element, so it yields before the buttons do. */
+export const FRONTLINE_MIN_WIDTH = 60;
+
+/** The top-centre panel: 40% of the viewport, squeezed by the HUD clusters. */
 export function frontlinePanelRect(
   width: number,
   metrics: FrontlineMetrics = FRONTLINE_METRICS,
-): Rect {
-  const w = Math.min(width, Math.max(0, width * metrics.widthFraction));
+  hudCluster?: { leftReserve: number; rightReserve: number },
+): { rect: Rect; visible: boolean } {
+  // M9b: at narrow widths the three top elements (resource readout, this
+  // indicator, the menu/pause/speed cluster) physically cannot coexist —
+  // 240 + 316 + anything exceeded 532px, and the histogram drew UNDER the
+  // buttons. The indicator yields FIRST (it is read-only info; the buttons
+  // and the resource readout are interactive), shrinking to the free band
+  // between the two HUD reserves and hiding when that band is too small.
+  const left = hudCluster ? hudCluster.leftReserve : 0;
+  const right = hudCluster ? hudCluster.rightReserve : 0;
+  const freeW = width - left - right;
+  const w = Math.min(width * metrics.widthFraction, Math.max(0, freeW));
+  const visible = w >= FRONTLINE_MIN_WIDTH;
   const h = metrics.histH + metrics.barH + metrics.gap * 2;
-  return { x: (width - w) / 2, y: metrics.top, w, h };
+  // Centre inside the FREE BAND, not the viewport: the reserves are asymmetric.
+  return { rect: { x: left + (freeW - w) / 2, y: metrics.top, w, h }, visible };
 }
 
 /**
@@ -121,8 +137,9 @@ export function frontlinePanelRect(
 export function baseBarRects(
   width: number,
   metrics: FrontlineMetrics = FRONTLINE_METRICS,
+  hudCluster?: { leftReserve: number; rightReserve: number },
 ): { player: Rect; enemy: Rect } {
-  const panel = frontlinePanelRect(width, metrics);
+  const panel = frontlinePanelRect(width, metrics, hudCluster).rect;
   const barW = Math.max(0, (panel.w - metrics.gap) / 2);
   const y = panel.y + metrics.histH + metrics.gap;
   return {
@@ -135,7 +152,8 @@ export function baseBarRects(
 export function histogramRect(
   width: number,
   metrics: FrontlineMetrics = FRONTLINE_METRICS,
+  hudCluster?: { leftReserve: number; rightReserve: number },
 ): Rect {
-  const panel = frontlinePanelRect(width, metrics);
+  const panel = frontlinePanelRect(width, metrics, hudCluster).rect;
   return { x: panel.x, y: panel.y, w: panel.w, h: metrics.histH };
 }

@@ -23,6 +23,7 @@ import {
   pauseLabel,
   menuLabel,
   resourceText,
+  resourceLines,
   speedHeaderRight,
   speedLabel,
   trainButtonState,
@@ -87,11 +88,20 @@ export function createHud(
   const metrics = HUD_METRICS;
 
   // ── Resource bar (top-left) ───────────────────────────────────────
+  // M9b: narrow viewports stack the readout into two short lines instead of
+  // one 230px line that runs under the menu button. `narrow` is derived from
+  // the menu button's left edge at layout time — one chain, not a media query.
+  // Lines sit at y=10/28 so the stacked form ends ABOVE the tick label (44).
   const resourceBg = scene.add.graphics().setScrollFactor(0).setDepth(BAR_DEPTH);
   const resourceText_ = scene.add
-    .text(12 + 10, 12 + 8, '', { fontFamily: FONT, fontSize: '16px', color: TEXT_LIGHT })
+    .text(12 + 10, 10, '', { fontFamily: FONT, fontSize: '16px', color: TEXT_LIGHT })
     .setScrollFactor(0)
     .setDepth(TEXT_DEPTH);
+  const resourceLine2 = scene.add
+    .text(12 + 10, 28, '', { fontFamily: FONT, fontSize: '16px', color: TEXT_LIGHT })
+    .setScrollFactor(0)
+    .setDepth(TEXT_DEPTH)
+    .setVisible(false);
 
   // Endless wave readout, on its own line below the resource and tick labels.
   // Hidden when empty so a campaign level shows nothing (spec §13.8 Q17: the
@@ -187,12 +197,19 @@ export function createHud(
     .setDepth(TEXT_DEPTH);
 
   let currentSpeed: GameSpeed = 1;
+  /** True when the readout renders as two stacked lines (narrow viewport). */
+  let narrowResource = false;
 
   const hud: Hud = {
     layout(width: number, height: number): void {
       const trainRects = layoutTrainButtons(width, height, metrics);
       const stanceRects = layoutStanceButtons(width, height, metrics);
       const speedRects = layoutSpeedButtons(width, metrics);
+
+      // M9b: the readout stacks when the single line would reach the menu
+      // button — the same left-edge chain the button cluster derives from.
+      const menu = layoutMenuButton(width, metrics);
+      narrowResource = menu.x - 22 < 240;
 
       // Size AND position both come from the layout rect. Setting the size here
       // rather than at construction is what makes "drawn rect != layout slot"
@@ -244,18 +261,29 @@ export function createHud(
     },
 
     sync(world: World): void {
-      resourceText_.setText(resourceText(world, side));
+      const lines = resourceLines(world, side);
+      resourceText_.setText(narrowResource ? lines.line1 : resourceText(world, side));
+      // Line 2 only exists in the stacked form; the single-line form carries
+      // both values already.
+      resourceLine2.setVisible(narrowResource).setText(lines.line2);
 
       const wave = waveText(world);
       waveText_.setText(wave).setVisible(wave !== '');
 
       resourceBg.clear();
       resourceBg.fillStyle(BG_COLOR, BG_ALPHA);
-      // The backdrop covers the wave line too when it is shown, so the two
-      // readouts form one panel rather than the wave floating on bare ground.
-      const bgW = Math.max(resourceText_.width, wave !== '' ? waveText_.width : 0) + 20;
-      const bgH = wave !== '' ? waveText_.y + waveText_.height + 6 - 12 : resourceText_.height + 16;
-      resourceBg.fillRect(12, 12, bgW, bgH);
+      // The backdrop covers every visible line, forming one panel.
+      const widest = narrowResource
+        ? Math.max(resourceText_.width, resourceLine2.width)
+        : resourceText_.width;
+      const bgW = Math.max(widest, wave !== '' ? waveText_.width : 0) + 20;
+      const deepestY = narrowResource
+        ? resourceLine2.y + resourceLine2.height
+        : resourceText_.y + resourceText_.height;
+      // Start above the first line and end below the deepest one.
+      const bgTop = Math.min(10, resourceText_.y);
+      const bgH = wave !== '' ? waveText_.y + waveText_.height + 6 - bgTop : deepestY + 6 - bgTop;
+      resourceBg.fillRect(12, bgTop, bgW, bgH);
 
       for (const b of trainButtons) {
         const state = trainButtonState(world, side, b.typeId);
@@ -306,6 +334,7 @@ export function createHud(
     destroy(): void {
       resourceBg.destroy();
       resourceText_.destroy();
+      resourceLine2.destroy();
       waveText_.destroy();
       trainBar.destroy();
       trainLabel.destroy();

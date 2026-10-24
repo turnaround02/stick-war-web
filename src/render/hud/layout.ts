@@ -70,6 +70,30 @@ export function resourceText(world: World, side: Side): string {
   return `${t('ui.gold')} ${gold}    ${t('ui.population')} ${pop}/${cap}`;
 }
 
+/** The resource readout split into TWO lines (narrow viewports, M9b). */
+export function resourceLines(world: World, side: Side): { line1: string; line2: string } {
+  const gold = Math.floor(world.gold[side]);
+  const pop = world.popUsed[side];
+  const cap = world.popCap[side];
+  return {
+    line1: `${t('ui.gold')} ${gold}`,
+    line2: `${t('ui.population')} ${pop}/${cap}`,
+  };
+}
+
+/**
+ * The width the resource readout needs.
+ *
+ * Wide viewports render the single-line form (≈230px); narrow ones stack the
+ * two lines (≈110px). The caller passes which form it renders so the 240px
+ * CLICK_RESERVE and this number cannot disagree — the reserve is exactly this
+ * plus padding, derived, not hardcoded twice.
+ */
+export function resourceReserveWidth(narrow: boolean): number {
+  // Two-line form: the wider line is "人口 8/60" ≈ 108px at 16px monospace.
+  return narrow ? 132 : 240;
+}
+
 /**
  * The endless wave readout, or '' for a non-endless match.
  *
@@ -224,6 +248,21 @@ export function layoutMenuButton(width: number, metrics: HudMetrics): HudRect {
 /** Menu-button dimensions, exported for the same reason as PAUSE_BUTTON. */
 export const MENU_BUTTON = { w: MENU_BUTTON_W, h: MENU_BUTTON_H } as const;
 
+/** The top-left screen reserve for the resource readout (see clickGuard). */
+export const RESOURCE_RESERVE_X = 240;
+
+/**
+ * The right-hand HUD cluster's total width (menu + pause + speed + gaps).
+ *
+ * The frontline indicator shrinks to the band between this and the resource
+ * reserve on narrow viewports; one function here is the single source both the
+ * guard and the indicator derive from.
+ */
+export function topRightClusterWidth(metrics: HudMetrics): number {
+  const speedTotal = SPEED_STEPS.length * SPEED_BUTTON_W + (SPEED_STEPS.length - 1) * metrics.gap;
+  return speedTotal + metrics.gap + PAUSE_BUTTON_W + metrics.gap + MENU_BUTTON_W;
+}
+
 /**
  * The x where the speed cluster's header text should sit, or null when there
  * is no room for it.
@@ -239,9 +278,5 @@ export const MENU_BUTTON = { w: MENU_BUTTON_W, h: MENU_BUTTON_H } as const;
 export function speedHeaderRight(width: number, metrics: HudMetrics): number | null {
   const menu = layoutMenuButton(width, metrics);
   const x = menu.x - metrics.gap;
-  // 240 = the top-left resource reserve (CLICK_GUARD.cornerW). Keeping them
-  // decoupled by value here is fine: the guard is a screen-space constant and
-  // this module must not import render-side modules (iron rule #7 variant).
-  const RESOURCE_RESERVE = 240;
-  return x - RESOURCE_RESERVE >= 48 ? x : null;
+  return x - RESOURCE_RESERVE_X >= 48 ? x : null;
 }

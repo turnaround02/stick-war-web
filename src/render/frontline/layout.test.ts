@@ -5,6 +5,7 @@ import {
   normalizeCounts,
   frontlinePanelRect,
   baseBarRects,
+  histogramRect,
   FRONTLINE_METRICS,
 } from './layout';
 import { createWorld } from '../../sim/createWorld';
@@ -119,23 +120,61 @@ describe('normalizeCounts', () => {
 
 describe('frontlinePanelRect', () => {
   it('is 40% of the viewport, centred horizontally, at the top', () => {
-    const r = frontlinePanelRect(1000, FRONTLINE_METRICS);
+    const r = frontlinePanelRect(1000, FRONTLINE_METRICS).rect;
     expect(r.w).toBeCloseTo(400);
     expect(r.x).toBeCloseTo(300);
     expect(r.y).toBe(FRONTLINE_METRICS.top);
   });
 
   it('never leaves the viewport at a narrow width', () => {
-    const r = frontlinePanelRect(120, FRONTLINE_METRICS);
+    const r = frontlinePanelRect(120, FRONTLINE_METRICS).rect;
     expect(r.x).toBeGreaterThanOrEqual(0);
     expect(r.x + r.w).toBeLessThanOrEqual(120 + 1e-6);
+  });
+
+  it('shrinks into the HUD band on a narrow viewport (M9b live-site bug)', () => {
+    // At 532px the unqualified 40% panel (x≈160..372) drew UNDER the top-right
+    // button cluster (menu.x = 267) AND beside the 240px resource reserve.
+    // The free band there is 532-240-316 = -24, so the indicator must HIDE.
+    const band = { leftReserve: 240, rightReserve: 316 };
+    const { visible } = frontlinePanelRect(532, FRONTLINE_METRICS, band);
+    expect(visible).toBe(false);
+  });
+
+  it('shows a squeezed-but-usable panel when the band barely fits', () => {
+    // 800px leaves 800-240-316 = 244 of free band — enough to show, at less
+    // than the full 40%.
+    const band = { leftReserve: 240, rightReserve: 316 };
+    const { rect, visible } = frontlinePanelRect(800, FRONTLINE_METRICS, band);
+    expect(visible).toBe(true);
+    expect(rect.x).toBeGreaterThanOrEqual(band.leftReserve);
+    expect(rect.x + rect.w).toBeLessThanOrEqual(800 - band.rightReserve);
+    expect(rect.w).toBeCloseTo(244);
+  });
+
+  it('keeps the full 40% when the band is wide enough', () => {
+    const band = { leftReserve: 240, rightReserve: 316 };
+    const { rect, visible } = frontlinePanelRect(1280, FRONTLINE_METRICS, band);
+    expect(visible).toBe(true);
+    expect(rect.w).toBeCloseTo(1280 * FRONTLINE_METRICS.widthFraction);
+  });
+
+  it('histogram and base bars follow the squeezed panel', () => {
+    const band = { leftReserve: 240, rightReserve: 316 };
+    const panel = frontlinePanelRect(800, FRONTLINE_METRICS, band).rect;
+    const hist = histogramRect(800, FRONTLINE_METRICS, band);
+    const { player, enemy } = baseBarRects(800, FRONTLINE_METRICS, band);
+    expect(hist.x).toBe(panel.x);
+    expect(hist.w).toBe(panel.w);
+    expect(player.x).toBeGreaterThanOrEqual(panel.x);
+    expect(enemy.x + enemy.w).toBeLessThanOrEqual(panel.x + panel.w + 1e-6);
   });
 });
 
 describe('baseBarRects', () => {
   it('sits at the two ends of the panel, below the histogram', () => {
     const { player, enemy } = baseBarRects(1000, FRONTLINE_METRICS);
-    const panel = frontlinePanelRect(1000, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(1000, FRONTLINE_METRICS).rect;
     expect(player.x).toBeGreaterThanOrEqual(panel.x);
     expect(enemy.x + enemy.w).toBeLessThanOrEqual(panel.x + panel.w + 1e-6);
     // Bars live under the histogram strip, not at the panel's top edge.
@@ -144,7 +183,7 @@ describe('baseBarRects', () => {
   });
 
   it('fits inside the panel at a narrow width', () => {
-    const panel = frontlinePanelRect(120, FRONTLINE_METRICS);
+    const panel = frontlinePanelRect(120, FRONTLINE_METRICS).rect;
     const { player, enemy } = baseBarRects(120, FRONTLINE_METRICS);
     expect(player.w).toBeGreaterThanOrEqual(0);
     expect(enemy.w).toBeGreaterThanOrEqual(0);

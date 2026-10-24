@@ -20,6 +20,7 @@ import {
   normalizeCounts,
   FRONTLINE_METRICS,
 } from './layout';
+import { topRightClusterWidth, HUD_METRICS } from '../hud/layout';
 import type { World } from '../../sim/types';
 
 const BG_COLOR = 0x141821;
@@ -41,6 +42,14 @@ export function createFrontline(scene: Phaser.Scene): Frontline {
 
   let width = 0;
 
+  // M9b: the panel must fit the band between the top-left resource reserve and
+  // the top-right button cluster — on narrow viewports it has to SHRINK, not
+  // draw under the buttons. Same numbers the click guard derives from.
+  const band = {
+    leftReserve: 240,
+    rightReserve: topRightClusterWidth(HUD_METRICS),
+  };
+
   const drawBaseBar = (
     x: number,
     y: number,
@@ -58,7 +67,7 @@ export function createFrontline(scene: Phaser.Scene): Frontline {
   };
 
   const drawHistogram = (world: World): void => {
-    const rect = histogramRect(width, FRONTLINE_METRICS);
+    const rect = histogramRect(width, FRONTLINE_METRICS, band);
     const bucketW = rect.w / FRONTLINE_METRICS.buckets;
 
     // Draw both sides mirrored about the mid-line: player bars rise from the
@@ -85,13 +94,17 @@ export function createFrontline(scene: Phaser.Scene): Frontline {
     sync(world: World): void {
       gfx.clear();
 
-      const panel = frontlinePanelRect(width, FRONTLINE_METRICS);
+      const { rect: panel, visible } = frontlinePanelRect(width, FRONTLINE_METRICS, band);
+      // M9b: below FRONTLINE_MIN_WIDTH the indicator hides entirely — the top
+      // strip is for the interactive HUD first at phone widths.
+      gfx.setVisible(visible);
+      if (!visible) return;
       gfx.fillStyle(BG_COLOR, BG_ALPHA);
       gfx.fillRect(panel.x, panel.y, panel.w, panel.h);
 
       drawHistogram(world);
 
-      const bars = baseBarRects(width, FRONTLINE_METRICS);
+      const bars = baseBarRects(width, FRONTLINE_METRICS, band);
       const pb = world.bases.player;
       const eb = world.bases.enemy;
       drawBaseBar(bars.player.x, bars.player.y, bars.player.w, bars.player.h, pb.hp, pb.maxHp, PLAYER_COLOR);
