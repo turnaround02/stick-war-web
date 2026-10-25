@@ -166,12 +166,40 @@ export const LEVEL_ENDLESS: MatchConfig = {
 };
 
 /**
+ * Level 4 — the 16-pop legion finale (spec §8.4.4c, M11).
+ *
+ * Both sides run the FULL economy at 16 pop and the enemy fields every unit
+ * type. The buildOrder places the giant THIRD: fewest-owned reaches it on the
+ * second rotation, so the enemy's early-mid shield line gets a 400-gold
+ * anchor — verified by the train ledger in level-4-winnable.test.ts.
+ *
+ * Economy swept (2026-10-25, 5 seeds, real runMatch path, giant-mid order):
+ *   450/5 157s · **500/5 236s** · 550/5 300s (player LOSES — too rich) · 450/6 173s
+ * Chosen 500/5: 236s sits in the window's upper half, the enemy composition
+ * reaches m3 s1 giant1 a1 sp1, and richer cells hand the win to the enemy.
+ */
+export const LEVEL_4: MatchConfig = {
+  levelId: 'level-4',
+  worldWidth: 3000,
+  baseHp: { player: 3000, enemy: 3000 },
+  mineGold: { player: 6000, enemy: 6000 },
+  startGold: { player: 500, enemy: 500 },
+  startMiners: { player: 5, enemy: 5 },
+  popCap: { player: 16, enemy: 16 },
+  enemyAi: 'economy',
+  enemyProfile: 'level-4',
+  waves: [],
+  endless: false,
+  winCondition: 'base',
+};
+
+/**
  * The campaign, in play order.
  *
  * The ARRAY ORDER is the level order. There is deliberately no `order` field on
  * MatchConfig — two sources of truth for the same fact is one too many.
  */
-export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_ENDLESS];
+export const LEVELS: readonly MatchConfig[] = [LEVEL_1, LEVEL_2, LEVEL_3, LEVEL_4, LEVEL_ENDLESS];
 
 /**
  * Index of the LAST campaign (winnable) level.

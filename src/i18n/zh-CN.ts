@@ -62,6 +62,7 @@ export const ZH_CN: Record<string, string> = {
   'level.level-1.name': '第一关',
   'level.level-2.name': '第二关',
   'level.level-3.name': '第三关',
+  'level.level-4.name': '第四关',
   'level.endless.name': '无尽模式',
 
   // One-line mechanic descriptions, shown under each menu row (M8).
@@ -70,6 +71,7 @@ export const ZH_CN: Record<string, string> = {
   'level.level-1.desc': '敌方没有经济——顶住波次攻势',
   'level.level-2.desc': '对称经济战——摧毁敌方基地',
   'level.level-3.desc': '12人口精锐战——敌方更强，拆掉基地',
+  'level.level-4.desc': '16人口军团决战——敌方巨人为盾，全员上阵',
   'level.endless.desc': '敌方无经济，波次无限增强——看你能撑几波',
 
   // In-game "return to menu?" confirm (M8). Returning discards the match.

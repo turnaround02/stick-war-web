@@ -135,6 +135,25 @@ export const LEVEL_2_ENEMY: AiProfile = {
 };
 
 /**
+ * Level-4 enemy: the 16-pop legion finale.
+ *
+ * The buildOrder places the giant THIRD so fewest-owned reaches it on the
+ * second rotation — the enemy's early-mid shield gets a 400-gold anchor,
+ * verified by the train ledger (giant ≥ 1) in level-4-winnable.test.ts.
+ *
+ * Economy swept on LEVEL_4 data (2026-10-25, 5 seeds, real runMatch path):
+ *   450/5 157s · **500/5 236s** · 550/5 300s (player LOSES) · 450/6 173s.
+ * Chosen LEVEL_4 startGold 500 / 5 miners; 236s in the window's upper half.
+ */
+export const LEVEL_4_ENEMY: AiProfile = {
+  decisionIntervalTicks: 30,
+  minerTarget: 7,
+  buildOrder: ['miner', 'swordsman', 'giant', 'archer', 'spearman', 'mage'],
+  advanceRatio: 1.0,
+  retreatRatio: 0.4,
+};
+
+/**
  * The registry a level selects from.
  *
  * A registry of ids rather than an inline profile on MatchConfig: the id is a
@@ -154,6 +173,7 @@ export const AI_PROFILES: Record<AiProfileId, AiProfile | null> = {
   standard: ENEMY_STANDARD,
   'level-2': LEVEL_2_ENEMY,
   'level-3': LEVEL_3_ENEMY,
+  'level-4': LEVEL_4_ENEMY,
 };
 
 /** The profile for an id, or null when that id means "no tactical layer". */

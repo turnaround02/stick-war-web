@@ -102,6 +102,7 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M8 菜单说明 + 对局中菜单键 + 部署**（**854 tests**；关卡 `.desc` 文案、HUD 菜单键 + 确认浮层、clickGuard 布局推导、GitHub 仓库已建并 push）
 - [x] **M9 触屏手势 + 窄视口顶条**（已上线，**876 tests**；pan/pinch 手势、frontline 让位、资源两行）
 - [x] **M10 敌方巨人/法师 + 经济重扫**（已上线，**877 tests**；startGold 300/5 矿工、buildOrder 加 giant/mage、锚点 280→192、训练台账断言）
+- [x] **M11 关卡 4 军团决战**（已上线，**890 tests**；popCap 16、双方 500 金、敌方巨人中置 buildOrder、锚点 236s、台账双断言）
 
 ## M6.4 已交付
 
@@ -203,6 +204,26 @@ M6.4 留下的「敌方不用新单位」缺口正式关闭。全部改动落在
 - **敌我经济必须对称强化**：LEVEL_3 是对称关，`startGold/startMiners` 改一边就破坏对称。300/5 是双方同改。
 - **给敌方加钱 = 对局变短**（不是变长）：敌方军队更早成型，但玩家 12 人口军队也提前成熟，净效果 280→192s。想拉长对局应该加人口或强化基地，不是给钱。
 - **250+ 金的差距不会被「稍微加点钱」填平**：峰值 150 vs 巨人 400，必须把起始金拉到 300 量级才能在轮转点上买得起。
+
+## M11 已交付（关卡 4——16 人口军团决战）
+
+战役第四章上线：双方 16 人口、全兵种上阵、敌方巨人中置 buildOrder。全部改动落在 `LEVELS` 数据 + 新档案 + 新测试，零 sim 机制改动。
+
+- **设计扫描先行（两次实测推翻假设）**：①无巨人版（450/5 顺序 buildOrder）251s 最接近窗口中心，但训练台账 **0 巨人**——fewest-owned 轮转永远先补满便宜单位，「全兵种上阵」的身份靠扫描碰不到；②改巨人中置 buildOrder 后：450/5→157s、**500/5→236s**、550/5→**300s 玩家输**（过富翻胜负！）、450/6→173s。选 500/5。
+- `data/levels.ts` — `LEVEL_4`（levelId `level-4`，popCap 16，双方 500 金 + 5 矿工，3000/3000 基地，`winCondition: 'base'`，`enemyProfile: 'level-4'`）；`LEVELS` 追加为 5 项。
+- `sim/ai-profile.ts` — `LEVEL_4_ENEMY`（mt=7，buildOrder `['miner','swordsman','giant','archer','spearman','mage']`，**巨人第三位**——fewest-owned 第二轮必达）；`AiProfileId` 加 `'level-4'`。
+- `i18n/zh-CN.ts` — `level.level-4.name/desc`（护栏测试要求两个键都登记，M8 规则自动生效）。
+- `sim/level-4-winnable.test.ts`（新，13 tests）— 5 种子全胜、236s 钉死、baseHp 归零、16 人口存活、**训练台账双断言（giant ≥ 1 且 spearman ≥ 1）**、可败、确定性。
+- `sim/level-2.test.ts` / `render/menu/layout.test.ts` — LEVELS 形状断言 4→5、菜单行 5 行（第 5 行才是无尽）。
+- **spec §8.4.4c（新）** + AGENTS.md 里程碑记录。
+- 回归：关卡 1 指纹 / counter-relations / 无尽锚点全部未动（**890 tests** 全绿）。
+
+### M11 的关键设计（容易忘的）
+
+- **「关卡身份必须写进断言，不能靠扫描碰运气」**：第四关的卖点是「敌方全员上阵」，但 fewest-owned 轮转在 16 人口 + 顺序 buildOrder 下永远轮不到巨人（便宜单位先补满）——只有把巨人**插进 buildOrder 结构**（第三位）才可能训练它。扫描负责调经济节奏，**结构负责保证内容**，两者不可互换。
+- **过富的格子会翻转胜负**：550/5 实测 playerLose——给双方更多钱，玩家的失误空间被压缩、敌方的巨人+法师组合先成型。「更富 = 更难」在这个经济模型里不成立，「更富 = 更快分出胜负」才成立。
+- **M4b 教训第五次应验**：500/6（多矿工）比 500/5 **短**（176s vs 236s）——收入端强化永远是加速器，不是难度旋钮。
+- **`LEVELS` 数组即关卡顺序**：加 LEVEL_4 后菜单行、解锁链、`LAST_CAMPAIGN_INDEX`、`advanceFurthestLevel` 封顶全部自动适应（纯扫描计算，无手写索引）——加关真的是纯数据工作，spec §8.5 的承诺兑现。
 
 
 

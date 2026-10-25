@@ -33,9 +33,9 @@ describe('menuPanelRect', () => {
 
 describe('menuRows', () => {
   it('lists every level in LEVELS order', () => {
-    const rows = menuRows(1280, 720, 3);
-    expect(rows.map((r) => r.levelIndex)).toEqual([0, 1, 2, 3]);
-    expect(rows[3]!.endless).toBe(true);
+    const rows = menuRows(1280, 720, 4);
+    expect(rows.map((r) => r.levelIndex)).toEqual([0, 1, 2, 3, 4]);
+    expect(rows[4]!.endless).toBe(true);
     expect(rows[0]!.endless).toBe(false);
   });
 
@@ -44,11 +44,12 @@ describe('menuRows', () => {
   });
 
   it('gates each level behind the save progress', () => {
-    const rows = menuRows(1280, 720, 1);
+    const rows = menuRows(1280, 720, 2);
     expect(rows[0]!.enabled).toBe(true);
     expect(rows[1]!.enabled).toBe(true);
-    expect(rows[2]!.enabled).toBe(false);
+    expect(rows[2]!.enabled).toBe(true);
     expect(rows[3]!.enabled).toBe(false);
+    expect(rows[4]!.enabled).toBe(false);
   });
 
   it('unlocks endless only after the last campaign level is beaten', () => {
