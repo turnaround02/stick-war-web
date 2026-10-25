@@ -101,8 +101,17 @@ export const LEVEL_3: MatchConfig = {
   worldWidth: 3000,
   baseHp: { player: 3000, enemy: 3000 },
   mineGold: { player: 6000, enemy: 6000 },
-  startGold: { player: 200, enemy: 200 },
-  startMiners: { player: 3, enemy: 3 },
+  // startGold 300 + 5 miners, swept (2026-10-25) WITH giant+mage in the enemy
+  // buildOrder. The M6.4 finding re-measured under popCap 12: the enemy's peak
+  // gold is 150 at the old economy, so a 400-gold giant can never happen
+  // without a buff. Grid (startGold × startMiners, 5 seeds):
+  //   300/4 158s giant NOT built · 300/5 192s giant BUILT · 400/4 184s not
+  //   450/3 196s giant BUILT · 260/4 157s · 280/5+260/5 192s (no giant at 260)
+  // Chosen 300/5: mildest buff that actually yields a giant, 192s inside the
+  // window. NOTE the M4b lesson repeating: buffing the enemy SHORTENS matches
+  // (both sides get richer; the player's 12-pop army matures sooner).
+  startGold: { player: 300, enemy: 300 },
+  startMiners: { player: 5, enemy: 5 },
   // 12, not the original 8. Swept (2026-10-19, 5 seeds, real runMatch path):
   //   8 -> 281s (baseline)   12 -> 280s   16 -> 213s   24 -> 212s
   // The 3-6min window centre is 270s, so 12 keeps the calibrated pacing

@@ -110,11 +110,18 @@ export const PLAYER_REFERENCE: AiProfile = {
  * (Same methodology as LEVEL_2_ENEMY sweep.)
  *
  * Measured: mt=7 iv=30 → 281 s on all 5 seeds. Swept 2026-10-17.
+ *
+ * M10 (2026-10-25): buildOrder gains giant+mage — the level-3 economy was
+ * swept to startGold 300 / 5 miners so the 400-gold giant is actually
+ * affordable (peak was 150 at the old economy; see levels.ts). With the buff,
+ * the sweep re-measured 280 s → 192 s on all 5 seeds; the nextBuildType
+ * "unaffordable stall" gap never triggered (verified by a train-ledger probe:
+ * the enemy built giant:1 in every candidate cell that could afford it).
  */
 export const LEVEL_3_ENEMY: AiProfile = {
   decisionIntervalTicks: 30,
   minerTarget: 7,
-  buildOrder: ['miner', 'swordsman', 'archer'],
+  buildOrder: ['miner', 'swordsman', 'archer', 'giant', 'mage'],
   advanceRatio: 1.0,
   retreatRatio: 0.4,
 };
