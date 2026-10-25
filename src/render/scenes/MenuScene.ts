@@ -13,6 +13,7 @@ import {
   canResetProgress,
   type MenuRow,
 } from '../menu/layout';
+import { helpPanelRect, helpLines, helpCloseRect, helpTitle, helpCloseLabel } from '../help/layout';
 
 const FONT = 'monospace';
 const TEXT_LIGHT = '#e8edf4';
@@ -79,6 +80,80 @@ export class MenuScene extends Phaser.Scene {
     if (canResetProgress(save.furthestLevel, save.endlessBestWave)) {
       this.buildAux(menuAuxRect(width, height));
     }
+
+    // M12: the "how to play" entry, bottom-left of the panel (aux lives
+    // bottom-centre; this sits left of it so the two never collide).
+    this.buildHelpButton(width, height);
+  }
+
+  /** The help entry + overlay. Hidden by default; shown on click. */
+  private buildHelpButton(width: number, height: number): void {
+    const panel = menuPanelRect(width, height);
+    const aux = menuAuxRect(width, height);
+    const w = 120;
+    const rect = this.add
+      .rectangle(panel.x + 16 + w / 2, aux.y + aux.h / 2, w, aux.h, BUTTON_OFF)
+      .setDepth(11)
+      .setInteractive({ useHandCursor: true });
+    this.add
+      .text(rect.x, rect.y, t('help.title'), { fontFamily: FONT, fontSize: '14px', color: TEXT_DIM })
+      .setOrigin(0.5)
+      .setDepth(12);
+
+    // The overlay: dim + panel + lines + close. Built hidden, shown on click.
+    const dim = this.add
+      .rectangle(0, 0, width, height, OVERLAY_COLOR, 0.7)
+      .setOrigin(0, 0)
+      .setDepth(20)
+      .setInteractive() // swallow clicks
+      .setVisible(false);
+    const hp = helpPanelRect(width, height);
+    const helpPanel = this.add
+      .rectangle(hp.x + hp.w / 2, hp.y + hp.h / 2, hp.w, hp.h, PANEL_COLOR, PANEL_ALPHA)
+      .setDepth(21)
+      .setVisible(false);
+    const title = this.add
+      .text(hp.x + hp.w / 2, hp.y + 24, helpTitle(), {
+        fontFamily: FONT,
+        fontSize: '20px',
+        color: TEXT_LIGHT,
+      })
+      .setOrigin(0.5)
+      .setDepth(22)
+      .setVisible(false);
+    const lineObjs = helpLines().map((line, i) =>
+      this.add
+        .text(hp.x + HELP_PAD, hp.y + 58 + i * HELP_LINE_H, line, {
+          fontFamily: FONT,
+          fontSize: '13px',
+          color: TEXT_DIM,
+        })
+        .setDepth(22)
+        .setVisible(false),
+    );
+    const close = helpCloseRect(width, height);
+    const closeBtn = this.add
+      .rectangle(close.x + close.w / 2, close.y + close.h / 2, close.w, close.h, BUTTON_ON)
+      .setDepth(22)
+      .setInteractive({ useHandCursor: true })
+      .setVisible(false);
+    const closeLabel = this.add
+      .text(closeBtn.x, closeBtn.y, helpCloseLabel(), {
+        fontFamily: FONT,
+        fontSize: '14px',
+        color: TEXT_LIGHT,
+      })
+      .setOrigin(0.5)
+      .setDepth(23)
+      .setVisible(false);
+
+    const all = [dim, helpPanel, title, ...lineObjs, closeBtn, closeLabel];
+    rect.on('pointerdown', () => {
+      for (const o of all) o.setVisible(true);
+    });
+    closeBtn.on('pointerdown', () => {
+      for (const o of all) o.setVisible(false);
+    });
   }
 
   /**
@@ -165,3 +240,7 @@ export class MenuScene extends Phaser.Scene {
 
 /** Title baseline inside the panel, above the first row. */
 const MENU_TITLE_OFFSET = 34;
+
+/** Help overlay line spacing (mirrors HELP_LAYOUT.lineH for text placement). */
+const HELP_LINE_H = 26;
+const HELP_PAD = 20;

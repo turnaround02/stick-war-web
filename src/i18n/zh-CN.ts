@@ -78,4 +78,14 @@ export const ZH_CN: Record<string, string> = {
   'confirm.menu.title': '返回菜单？进行中的对局将丢失',
   'confirm.menu.yes': '确认',
   'confirm.menu.no': '取消',
+
+  // "How to play" overlay (M12) — the controls a player cannot discover
+  // from the UI alone.
+  'help.title': '操作说明',
+  'help.close': '关闭',
+  'help.scroll': 'A/D 或 ←/→ 滚动战场（触屏：拖动）',
+  'help.stance': 'Q/W/E = 全军推进/驻守/撤退',
+  'help.pause': '空格 暂停/继续',
+  'help.replay': 'R 重玩本关',
+  'help.touch': '触屏：单指拖动平移，双指捏合缩放',
 };

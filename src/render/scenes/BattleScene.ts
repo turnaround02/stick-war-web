@@ -11,6 +11,7 @@ import { createWorld } from '../../sim/createWorld';
 import type { MatchConfig, Side, Stance, Unit, UnitState, World } from '../../sim/types';
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
 import { createHud, type Hud } from '../hud';
+import { stunRingFor, STUN_RING_COLOR, STUN_RING } from '../hud/stun-ring';
 import { createResultOverlay, type ResultOverlay } from '../result';
 import { createFrontline, type Frontline } from '../frontline';
 import { shouldIgnoreClick } from '../clickGuard';
@@ -533,6 +534,18 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
   private drawSelectionMarkers(): void {
     const g = this.selectedMarker;
     g.clear();
+
+    // M6.4-Q5 follow-up: a mage-stunned unit stands frozen with no cue; draw
+    // a pulsing yellow-green ring under it. Read-only from sim (stunTicksLeft).
+    for (const unit of this.world.units) {
+      if (unit.state !== 'stunned' || unit.stunTicksLeft <= 0) continue;
+      const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
+      const ring = stunRingFor(unit, x, this.groundY);
+      if (!ring.visible) continue;
+      g.lineStyle(2, STUN_RING_COLOR, 0.6 + 0.3 * ring.fraction);
+      g.strokeEllipse(ring.x, ring.y, STUN_RING.rx * 2 * ring.pulse, STUN_RING.ry * 2);
+    }
+
     if (this.selection.size === 0) return;
 
     g.lineStyle(2, 0xffffff, 0.75);

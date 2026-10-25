@@ -103,6 +103,7 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M9 触屏手势 + 窄视口顶条**（已上线，**876 tests**；pan/pinch 手势、frontline 让位、资源两行）
 - [x] **M10 敌方巨人/法师 + 经济重扫**（已上线，**877 tests**；startGold 300/5 矿工、buildOrder 加 giant/mage、锚点 280→192、训练台账断言）
 - [x] **M11 关卡 4 军团决战**（已上线，**890 tests**；popCap 16、双方 500 金、敌方巨人中置 buildOrder、锚点 236s、台账双断言）
+- [x] **M12 打磨收尾**（已上线，**905 tests**；眩晕脉冲圈、菜单「操作说明」浮层、help 纯几何模块）
 
 ## M6.4 已交付
 
@@ -224,6 +225,22 @@ M6.4 留下的「敌方不用新单位」缺口正式关闭。全部改动落在
 - **过富的格子会翻转胜负**：550/5 实测 playerLose——给双方更多钱，玩家的失误空间被压缩、敌方的巨人+法师组合先成型。「更富 = 更难」在这个经济模型里不成立，「更富 = 更快分出胜负」才成立。
 - **M4b 教训第五次应验**：500/6（多矿工）比 500/5 **短**（176s vs 236s）——收入端强化永远是加速器，不是难度旋钮。
 - **`LEVELS` 数组即关卡顺序**：加 LEVEL_4 后菜单行、解锁链、`LAST_CAMPAIGN_INDEX`、`advanceFurthestLevel` 封顶全部自动适应（纯扫描计算，无手写索引）——加关真的是纯数据工作，spec §8.5 的承诺兑现。
+
+## M12 已交付（打磨收尾包：眩晕圈 + 操作说明）
+
+M11 后的收尾：清掉最后两个「遗留可选项」。全部渲染层，零 sim 改动。
+
+- `render/hud/stun-ring.ts`（新）— 纯函数 `stunRingFor(unit, x, groundY)`：`{visible, fraction, pulse}`，pulse = `1 + 0.15·sin(ticksLeft·π/8)`，读 `stunTicksLeft`（sim 只读，确定性不依赖墙钟）。8 条测试。
+- `BattleScene.drawSelectionMarkers` — 眩晕单位脚下画黄绿脉冲椭圆（`STUN_RING_COLOR 0xb8c832`，与白色选中圈可区分）；与选中圈同层绘制，互不冲突。
+- `render/help/layout.ts`（新）— 「操作说明」浮层纯几何 + 文案（5 行：滚动/姿态/暂停/重玩/触屏），7 条测试含「每行不得是裸键名」护栏。
+- `MenuScene` — 面板左下角加「操作说明」按钮 → 弹浮层（dim + 面板 + 5 行 + 关闭），关闭按钮在面板底部居中。
+- `i18n/zh-CN.ts` — `help.*` 7 键。
+
+### M12 的关键设计（容易忘的）
+
+- **眩晕圈的 pulse 读单位自己的 `stunTicksLeft`**（不是墙钟）：与其它「渲染读 sim」属性同性质，任意速度下确定性一致。
+- **操作说明解决的是「可发现性」**：A/D、Q/W/E、空格、R、拖动/捏合此前只存在于代码注释——新玩家唯一的来源就是这层浮层。
+- **帮助浮层与确认浮层同构**（dim + panel + lines + close），复用 `helpCloseRect` 的纯几何形状。
 
 
 
