@@ -42,7 +42,6 @@ const FONT = 'monospace';
 const TEXT_LIGHT = '#e8edf4';
 const TEXT_DIM = '#6b7280';
 const BG_COLOR = 0x141821;
-const BG_ALPHA = 0.78;
 const BUTTON_ON = 0x2f3a4a;
 const BUTTON_OFF = 0x1c2028;
 const BUTTON_ACTIVE = 0x3f6fd0;
@@ -149,6 +148,8 @@ export function createHud(
       .rectangle(0, 0, w, h, BUTTON_ON)
       .setScrollFactor(0)
       .setDepth(BAR_DEPTH + 1)
+      // M13: a subtle outline lifts the button off the panel.
+      .setStrokeStyle(1, 0x4a5568, 1)
       .setInteractive({ useHandCursor: true });
     rect.on('pointerdown', onClick);
 
@@ -256,8 +257,11 @@ export function createHud(
       if (headerX !== null) speedHeader.setPosition(headerX, pr.y + pr.h / 2);
 
       barBg.clear();
-      barBg.fillStyle(BG_COLOR, BG_ALPHA);
-      barBg.fillRect(0, height - metrics.barHeight, width, metrics.barHeight);
+      barBg.fillStyle(BG_COLOR, 0.86);
+      // M13: rounded corners + a subtle top accent line — same layout, new skin.
+      barBg.fillRoundedRect(0, height - metrics.barHeight, width, metrics.barHeight, { tl: 10, tr: 10, bl: 0, br: 0 });
+      barBg.fillStyle(0x3f6fd0, 0.5);
+      barBg.fillRect(0, height - metrics.barHeight, width, 2);
     },
 
     sync(world: World): void {
@@ -271,8 +275,9 @@ export function createHud(
       waveText_.setText(wave).setVisible(wave !== '');
 
       resourceBg.clear();
-      resourceBg.fillStyle(BG_COLOR, BG_ALPHA);
+      resourceBg.fillStyle(BG_COLOR, 0.86);
       // The backdrop covers every visible line, forming one panel.
+      // M13: rounded corners to match the bottom bar's skin.
       const widest = narrowResource
         ? Math.max(resourceText_.width, resourceLine2.width)
         : resourceText_.width;
@@ -283,7 +288,7 @@ export function createHud(
       // Start above the first line and end below the deepest one.
       const bgTop = Math.min(10, resourceText_.y);
       const bgH = wave !== '' ? waveText_.y + waveText_.height + 6 - bgTop : deepestY + 6 - bgTop;
-      resourceBg.fillRect(12, bgTop, bgW, bgH);
+      resourceBg.fillRoundedRect(12, bgTop, bgW, bgH, 8);
 
       for (const b of trainButtons) {
         const state = trainButtonState(world, side, b.typeId);

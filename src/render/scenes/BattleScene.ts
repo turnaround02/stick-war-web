@@ -12,6 +12,16 @@ import type { MatchConfig, Side, Stance, Unit, UnitState, World } from '../../si
 import { clampScrollX, clampZoom, EDGE_SCROLL_MARGIN } from '../camera';
 import { createHud, type Hud } from '../hud';
 import { stunRingFor, STUN_RING_COLOR, STUN_RING } from '../hud/stun-ring';
+import {
+  backdropPlan,
+  silhouettePoints,
+  FAR_LAYER,
+  NEAR_LAYER,
+  FAR_COLOR,
+  NEAR_COLOR,
+  PARALLAX,
+} from '../backdrop/layout';
+import { createParticleLayer, type ParticleLayer } from '../fx';
 import { createResultOverlay, type ResultOverlay } from '../result';
 import { createFrontline, type Frontline } from '../frontline';
 import { shouldIgnoreClick } from '../clickGuard';
@@ -50,7 +60,15 @@ const STATE_CYCLE_TICKS: Partial<Record<UnitState, number>> = {
  * driver. Reads sim state every frame and NEVER writes to it (spec §3.1).
  */
 export class BattleScene extends Phaser.Scene {  private world!: World;
+  /**
+   * The dusk backdrop (sky + parallax silhouettes), fixed to the viewport.
+   * Depth -10: behind everything, including the ghosts.
+   */
+  private backdrop!: Phaser.GameObjects.Graphics;
+  /** World-space overlays: horizon line, base markers. */
   private groundLine!: Phaser.GameObjects.Graphics;
+  /** Hit sparks + death shatter (M13). Screen-only, no sim coupling. */
+  private particles!: ParticleLayer;
   private groundY = 0;
   private stickmen = new Map<number, Stickman>();
   private timestep = new FixedTimestep();
@@ -172,7 +190,9 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     // update() call keeps this authoritative from the first frame on.
     this.audio.setMuted(this.saveData.sfxMuted);
 
+    this.backdrop = this.add.graphics().setScrollFactor(0).setDepth(-10);
     this.groundLine = this.add.graphics();
+    this.particles = createParticleLayer(this);
     this.projectiles = createProjectileLayer(this);
     this.selectedMarker = this.add.graphics().setDepth(6);
 
@@ -219,6 +239,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       this.hud.destroy();
       this.result.destroy();
       this.frontline.destroy();
+      this.particles.destroy();
       for (const o of this.menuConfirm.all) o.destroy();
       this.audio.destroy();
     });
@@ -623,7 +644,9 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     }
 
     this.syncStickmen();
+    this.particles.update(delta);
     this.projectiles.sync(this.world.projectiles, this.timestep.alpha);
+    this.drawGround();
     this.drawSelectionMarkers();
     this.hud.sync(this.world);
     this.frontline.sync(this.world);
@@ -712,21 +735,61 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.result.layout(width, height);
   }
 
-  /** Draws the ground line and the base markers. Camera-agnostic: world coords only. */
+  /**
+   * Draws the dusk backdrop (sky bands, parallax silhouettes, ground bands)
+   * and the base markers. Camera-agnostic: world coords only.
+   *
+   * M13: replaced the flat #1a1d24 + ground line with the layered scene from
+   * `render/backdrop` (pure module, tested). Redrawn every frame so the two
+   * silhouette layers can follow the camera at parallax factors — the fill
+   * cost is a handful of rects/polylines, negligible against stickman sync.
+   */
   private drawGround(): void {
-    this.groundLine.clear();
+    const g = this.backdrop;
+    g.clear();
+    const { width, height } = this.scale;
+    const camScroll = this.cameras.main.scrollX;
 
-    // Sub-surface fill so the ground reads as solid.
-    this.groundLine.fillStyle(0x2b3038, 1);
-    this.groundLine.fillRect(0, this.groundY, WORLD_WIDTH, this.scale.height - this.groundY);
+    // 1. Sky bands + ground bands (static, viewport-space).
+    const plan = backdropPlan(height, this.groundY);
+    for (const band of plan.sky) {
+      g.fillStyle(band.color, 1);
+      g.fillRect(0, band.y0, width, band.y1 - band.y0);
+    }
+    for (const band of plan.ground) {
+      g.fillStyle(band.color, 1);
+      g.fillRect(0, band.y0, width, band.y1 - band.y0);
+    }
 
-    // The ground line itself.
-    this.groundLine.lineStyle(2, 0x5b6472, 1);
-    this.groundLine.lineBetween(0, this.groundY, WORLD_WIDTH, this.groundY);
+    // 2. Silhouettes: polylines whose x follows the camera at a fraction of
+    //    its speed. Drawn as filled shapes down to the horizon.
+    this.drawSilhouette(g, silhouettePoints(FAR_LAYER, this.groundY, camScroll, PARALLAX.far), FAR_COLOR);
+    this.drawSilhouette(g, silhouettePoints(NEAR_LAYER, this.groundY, camScroll, PARALLAX.near), NEAR_COLOR);
 
-    // Base markers, so camera movement is legible.
+    // 3. World-space overlays: the horizon line + base markers.
+    const w = this.groundLine;
+    w.clear();
+    w.lineStyle(2, 0x6b5a72, 1);
+    w.lineBetween(0, this.groundY, WORLD_WIDTH, this.groundY);
+
     this.drawBaseMarker('player', 0x3f7fd0);
     this.drawBaseMarker('enemy', 0xd05a3f);
+  }
+
+  /** Fills one silhouette polyline down to the horizon. */
+  private drawSilhouette(
+    g: Phaser.GameObjects.Graphics,
+    points: Array<{ x: number; h: number }>,
+    color: number,
+  ): void {
+    if (points.length < 2) return;
+    g.fillStyle(color, 1);
+    g.beginPath();
+    g.moveTo(points[0]!.x, this.groundY);
+    for (const p of points) g.lineTo(p.x, this.groundY - p.h);
+    g.lineTo(points[points.length - 1]!.x, this.groundY);
+    g.closePath();
+    g.fillPath();
   }
 
   private drawBaseMarker(side: Side, color: number): void {
@@ -767,6 +830,8 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       const typeId = this.lastTypeId.get(id);
       if (typeId) {
         spawnGhost(this, ghostX, this.groundY, typeId, this.lastFacing.get(id) ?? 1);
+        // M13: the unit shatters at its last spot (screen-only feedback).
+        this.particles.spawnDeath(typeId, ghostX, this.groundY, id * 31 + this.world.tick);
       }
       this.lastTypeId.delete(id);
       this.lastFacing.delete(id);
