@@ -28,6 +28,8 @@ import {
   speedLabel,
   trainButtonState,
   waveText,
+  bottomBarLayout,
+  compactTrainLabel,
   PAUSE_BUTTON,
   MENU_BUTTON,
   SPEED_BUTTON,
@@ -200,9 +202,13 @@ export function createHud(
   let currentSpeed: GameSpeed = 1;
   /** True when the readout renders as two stacked lines (narrow viewport). */
   let narrowResource = false;
+  /** True when the bottom bar is squeezed and labels render as two lines (M13b). */
+  let compactBar = false;
 
   const hud: Hud = {
     layout(width: number, height: number): void {
+      const bl = bottomBarLayout(width, metrics);
+      compactBar = bl.compact;
       const trainRects = layoutTrainButtons(width, height, metrics);
       const stanceRects = layoutStanceButtons(width, height, metrics);
       const speedRects = layoutSpeedButtons(width, metrics);
@@ -220,8 +226,16 @@ export function createHud(
         const b = trainButtons[i];
         b.rect.setSize(r.w, r.h);
         b.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
-        b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2 - 7);
-        b.reason.setPosition(r.x + r.w / 2, r.y + r.h / 2 + 13);
+        // Compact (M13b): name on top, price/reason below. Wide: the combined
+        // "name price" label with the reason under it. Rectangle.setSize also
+        // refreshes the input hit area, so squeezed buttons stay clickable.
+        if (compactBar) {
+          b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2 - 8);
+          b.reason.setPosition(r.x + r.w / 2, r.y + r.h / 2 + 9);
+        } else {
+          b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2 - 7);
+          b.reason.setPosition(r.x + r.w / 2, r.y + r.h / 2 + 13);
+        }
       });
 
       stanceRects.forEach((r, i) => {
@@ -230,6 +244,15 @@ export function createHud(
         b.rect.setPosition(r.x + r.w / 2, r.y + r.h / 2);
         b.label.setPosition(r.x + r.w / 2, r.y + r.h / 2);
       });
+
+      // Squeezed buttons get a smaller face so "弓箭手" fits a 76px button.
+      // layout() is resize-only, so re-rendering the texts here is free.
+      const labelFont = compactBar ? 12 : 14;
+      for (const b of trainButtons) {
+        b.label.setFontSize(labelFont);
+        b.reason.setFontSize(compactBar ? 12 : 10);
+      }
+      for (const b of stanceButtons) b.label.setFontSize(labelFont);
 
       speedRects.forEach((r, i) => {
         const b = speedButtons[i];
@@ -259,9 +282,10 @@ export function createHud(
       barBg.clear();
       barBg.fillStyle(BG_COLOR, 0.86);
       // M13: rounded corners + a subtle top accent line — same layout, new skin.
-      barBg.fillRoundedRect(0, height - metrics.barHeight, width, metrics.barHeight, { tl: 10, tr: 10, bl: 0, br: 0 });
+      // M13b: the height comes from the squeeze ladder (two rows when narrow).
+      barBg.fillRoundedRect(0, height - bl.barHeight, width, bl.barHeight, { tl: 10, tr: 10, bl: 0, br: 0 });
       barBg.fillStyle(0x3f6fd0, 0.5);
-      barBg.fillRect(0, height - metrics.barHeight, width, 2);
+      barBg.fillRect(0, height - bl.barHeight, width, 2);
     },
 
     sync(world: World): void {
@@ -293,8 +317,21 @@ export function createHud(
       for (const b of trainButtons) {
         const state = trainButtonState(world, side, b.typeId);
         b.rect.setFillStyle(state.enabled ? BUTTON_ON : BUTTON_OFF);
-        b.label.setText(state.label).setColor(state.enabled ? TEXT_LIGHT : TEXT_DIM);
-        b.reason.setText(state.reason);
+        b.label.setColor(state.enabled ? TEXT_LIGHT : TEXT_DIM);
+        // M13b: a squeezed button shows the name and the price on two lines;
+        // a disabled one swaps the price for the reason. The reason line's
+        // colour follows the state in BOTH modes — a stale colour from the
+        // other mode would otherwise survive a resize (the label0 defect's
+        // cousin: never let a per-state property outlive its state).
+        if (compactBar) {
+          const lines = compactTrainLabel(b.typeId, state.enabled, state.reason);
+          b.label.setText(lines.line1);
+          b.reason.setText(lines.line2);
+        } else {
+          b.label.setText(state.label);
+          b.reason.setText(state.reason);
+        }
+        b.reason.setColor(state.enabled ? TEXT_DIM : REASON_COLOR);
       }
 
       // Stance labels are refreshed every sync, NOT cached at construction: a

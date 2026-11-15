@@ -12,6 +12,9 @@ import {
   speedHeaderRight,
   trainButtonState,
   waveText,
+  bottomBarLayout,
+  bottomBarHeight,
+  compactTrainLabel,
   PAUSE_BUTTON,
   MENU_BUTTON,
   SPEED_BUTTON,
@@ -372,5 +375,134 @@ describe('speedLabel', () => {
 
   it('never returns an empty label', () => {
     for (const speed of SPEED_STEPS) expect(speedLabel(speed).length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * M13b — the bottom-bar squeeze ladder.
+ *
+ * Before M13b the bottom bar was a fixed 1036px row (9 × 108 + 8 × 8) centred
+ * on the viewport: below ~1052px it overflowed BOTH edges symmetrically, and
+ * the miner, swordsman, hold and retreat buttons were physically off-screen.
+ * Seen live at 718px — the deployed README screenshot shows only 5 of the 9
+ * buttons, so the player could not train miners or order a retreat.
+ *
+ * The ladder (every threshold DERIVED from rowWidth + padding, never a bare
+ * constant next to the row math it must track):
+ *   ≥ 1068  single row, full-size buttons (byte-identical to pre-M13b)
+ *   ≥ 720   single row, squeezed buttons, two-line labels (compact)
+ *   < 720   two stacked rows (train below, stance above), squeezed buttons
+ */
+describe('bottomBarLayout — the squeeze ladder (M13b)', () => {
+  it('keeps the full single row at desktop widths', () => {
+    const bl = bottomBarLayout(1280, metrics);
+    expect(bl.rows).toBe(1);
+    expect(bl.buttonW).toBe(108);
+    expect(bl.buttonH).toBe(44);
+    expect(bl.barHeight).toBe(metrics.barHeight);
+    expect(bl.compact).toBe(false);
+  });
+
+  it('squeezes the single row before stacking it', () => {
+    const bl = bottomBarLayout(1000, metrics);
+    expect(bl.rows).toBe(1);
+    expect(bl.buttonW).toBe(100);
+    expect(bl.barHeight).toBe(metrics.barHeight);
+    expect(bl.compact).toBe(true);
+  });
+
+  it('stacks two rows below the single-row floor', () => {
+    const bl = bottomBarLayout(719, metrics);
+    expect(bl.rows).toBe(2);
+    expect(bl.buttonW).toBe(107);
+    expect(bl.barHeight).toBe(2 * 44 + 8 + 2 * 10);
+    expect(bl.compact).toBe(true);
+  });
+
+  it('squeezed two-row buttons fit the evidence viewport (532px)', () => {
+    const bl = bottomBarLayout(532, metrics);
+    expect(bl.rows).toBe(2);
+    expect(bl.buttonW).toBe(76);
+  });
+
+  it('floors the button width instead of shrinking to nothing', () => {
+    expect(bottomBarLayout(250, metrics).buttonW).toBe(32);
+  });
+});
+
+describe('bottom bar fits every viewport (M13b — the bug)', () => {
+  // Widths where the old layout put buttons off-screen or right at the edge,
+  // including both live-evidence widths (532 and 718).
+  const widths = [1280, 1068, 1000, 718, 600, 532, 414, 375, 360];
+
+  for (const width of widths) {
+    it(`keeps all 9 buttons inside a ${width}px viewport`, () => {
+      const train = layoutTrainButtons(width, 720, metrics);
+      const stance = layoutStanceButtons(width, 720, metrics);
+      expect(train).toHaveLength(6);
+      expect(stance).toHaveLength(3);
+      for (const r of [...train, ...stance]) {
+        expect(r.x, `left edge at ${width}`).toBeGreaterThanOrEqual(0);
+        expect(r.x + r.w, `right edge at ${width}`).toBeLessThanOrEqual(width);
+      }
+    });
+
+    it(`never overlaps buttons at ${width}px`, () => {
+      const train = layoutTrainButtons(width, 720, metrics);
+      for (let i = 1; i < train.length; i++) {
+        expect(train[i].x).toBeGreaterThanOrEqual(train[i - 1].x + train[i - 1].w);
+      }
+      const stance = layoutStanceButtons(width, 720, metrics);
+      for (let i = 1; i < stance.length; i++) {
+        expect(stance[i].x).toBeGreaterThanOrEqual(stance[i - 1].x + stance[i - 1].w);
+      }
+    });
+  }
+});
+
+describe('two-row geometry (M13b)', () => {
+  it('stacks stance above train with a gap, inside a taller bar', () => {
+    const train = layoutTrainButtons(532, 960, metrics);
+    const stance = layoutStanceButtons(532, 960, metrics);
+    // Train is the BOTTOM row: the most-used buttons sit closest to the edge.
+    expect(stance[0].y + stance[0].h).toBeLessThanOrEqual(train[0].y);
+    // Both rows sit inside the taller bar, and the bar inside the viewport.
+    expect(train[0].y).toBeGreaterThanOrEqual(960 - 116);
+    expect(train[0].y + train[0].h).toBeLessThanOrEqual(960);
+    expect(stance[0].y).toBeGreaterThanOrEqual(960 - 116);
+    // Same button size in both rows.
+    expect(stance[0].w).toBe(train[0].w);
+    expect(stance[0].h).toBe(train[0].h);
+  });
+
+  it('keeps the desktop row layout byte-identical (fingerprint)', () => {
+    // (1280 − 1036) / 2 = 122; y = 720 − 64/2 − 44/2 = 666. The wide layout is
+    // frozen the same way level 1's fingerprint is: the squeeze must only
+    // ever change behaviour BELOW the single-row floor.
+    expect(layoutTrainButtons(1280, 720, metrics)[0]).toEqual({ x: 122, y: 666, w: 108, h: 44 });
+    expect(layoutStanceButtons(1280, 720, metrics)[0]).toEqual({
+      x: 122 + 6 * 108 + 6 * 8,
+      y: 666,
+      w: 108,
+      h: 44,
+    });
+  });
+
+  it('reports the bar height the renderer and the guard must both use', () => {
+    expect(bottomBarHeight(1280, metrics)).toBe(64);
+    expect(bottomBarHeight(1000, metrics)).toBe(64);
+    expect(bottomBarHeight(532, metrics)).toBe(116);
+  });
+});
+
+describe('compactTrainLabel (M13b)', () => {
+  it('splits name and price onto two lines when enabled', () => {
+    expect(compactTrainLabel('archer', true, '')).toEqual({ line1: '弓箭手', line2: `${UNITS.archer.goldCost}` });
+  });
+
+  it('replaces the price with the reason when disabled', () => {
+    // A disabled button has no useful price to show twice; the reason is what
+    // tells the player what to fix (trainButtonState's own contract).
+    expect(compactTrainLabel('swordsman', false, '金币不足')).toEqual({ line1: '剑士', line2: '金币不足' });
   });
 });

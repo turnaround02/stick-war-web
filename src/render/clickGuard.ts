@@ -17,21 +17,18 @@
  */
 
 import { FRONTLINE_METRICS, frontlinePanelRect, type FrontlineMetrics } from './frontline/layout';
-import { layoutMenuButton, RESOURCE_RESERVE_X, HUD_METRICS } from './hud/layout';
+import { layoutMenuButton, RESOURCE_RESERVE_X, bottomBarHeight, HUD_METRICS } from './hud/layout';
 
 export interface ClickGuardConfig {
   /** Width of the reserved top-left corner (resource bar). */
   cornerW: number;
   /** Height of the reserved top strip. */
   topH: number;
-  /** Height of the bottom HUD bar. */
-  hudH: number;
 }
 
 export const CLICK_GUARD: ClickGuardConfig = {
   cornerW: RESOURCE_RESERVE_X,
   topH: 56,
-  hudH: 64,
 };
 
 /**
@@ -64,7 +61,11 @@ export function shouldIgnoreClick(
   guard: ClickGuardConfig = CLICK_GUARD,
   metrics: FrontlineMetrics = FRONTLINE_METRICS,
 ): boolean {
-  if (y >= height - guard.hudH) return true;
+  // M13b: the bottom reserve is DERIVED from the bar's squeeze ladder — at
+  // narrow widths the bar stacks to two rows (116px, not 64), and a hardcoded
+  // 64 let clicks land on the stacked row's buttons AND select units behind
+  // them. Same lesson as M8's hardcoded top corner: derive, don't duplicate.
+  if (y >= height - bottomBarHeight(width)) return true;
 
   if (y <= guard.topH) {
     if (x <= guard.cornerW) return true;

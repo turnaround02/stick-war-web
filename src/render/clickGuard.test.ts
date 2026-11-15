@@ -55,3 +55,27 @@ describe('shouldIgnoreClick', () => {
     expect(shouldIgnoreClick(290, 20, 300, H)).toBe(true);
   });
 });
+
+/**
+ * M13b — the bottom reserve must follow the bottom bar's squeeze ladder.
+ *
+ * The old guard reserved a fixed 64px. At narrow widths the bar stacks to two
+ * rows (116px), so clicks in the 64–116px band ABOVE the bottom edge landed on
+ * real buttons but were treated as battlefield clicks — the exact failure mode
+ * M8 fixed for the top-right cluster, repeating for the bottom bar.
+ */
+describe('bottom reserve follows the squeeze ladder (M13b)', () => {
+  it('reserves the taller two-row bar on a narrow viewport', () => {
+    // 532px stacks the bar to 116px; 70px above the bottom edge is INSIDE it.
+    expect(shouldIgnoreClick(266, 960 - 70, 532, 960)).toBe(true);
+  });
+
+  it('still leaves the battlefield above the tall bar clickable', () => {
+    expect(shouldIgnoreClick(266, 960 - 117, 532, 960)).toBe(false);
+  });
+
+  it('keeps the 64px reserve on a desktop viewport', () => {
+    expect(shouldIgnoreClick(500, 720 - 64, 1280, 720)).toBe(true);
+    expect(shouldIgnoreClick(500, 720 - 65, 1280, 720)).toBe(false);
+  });
+});

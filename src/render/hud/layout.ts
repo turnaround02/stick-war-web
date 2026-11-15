@@ -129,8 +129,29 @@ function barRowY(height: number, metrics: HudMetrics): number {
   return height - metrics.barHeight / 2;
 }
 
+function rowWidthOf(count: number, buttonW: number, gap: number): number {
+  return count * buttonW + (count - 1) * gap;
+}
+
 function rowWidth(count: number, metrics: HudMetrics): number {
-  return count * metrics.buttonW + (count - 1) * metrics.gap;
+  return rowWidthOf(count, metrics.buttonW, metrics.gap);
+}
+
+function layoutRowAt(
+  count: number,
+  startX: number,
+  y: number,
+  buttonW: number,
+  buttonH: number,
+  gap: number,
+): HudRect[] {
+  const rects: HudRect[] = [];
+  let x = startX;
+  for (let i = 0; i < count; i++) {
+    rects.push({ x, y, w: buttonW, h: buttonH });
+    x += buttonW + gap;
+  }
+  return rects;
 }
 
 function layoutRow(
@@ -138,30 +159,136 @@ function layoutRow(
   startX: number,
   height: number,
   metrics: HudMetrics,
+  buttonW = metrics.buttonW,
 ): HudRect[] {
-  const rects: HudRect[] = [];
-  let x = startX;
-  const y = barRowY(height, metrics) - metrics.buttonH / 2;
-  for (let i = 0; i < count; i++) {
-    rects.push({ x, y, w: metrics.buttonW, h: metrics.buttonH });
-    x += metrics.buttonW + metrics.gap;
-  }
-  return rects;
+  return layoutRowAt(count, startX, barRowY(height, metrics) - metrics.buttonH / 2, buttonW, metrics.buttonH, metrics.gap);
 }
 
-/** Left edge of the whole bottom bar, so train + stance sit as one group. */
-function barStartX(width: number, metrics: HudMetrics): number {
-  const count = TRAINABLE.length + STANCE_BUTTONS.length;
-  return Math.round((width - rowWidth(count, metrics)) / 2);
+/** Vertical padding above/below the bottom-bar rows. 64 = 44 + 2×10 today. */
+const BOTTOM_PAD = 10;
+
+/** Squeezed buttons never shrink below this; below ~340px the row may clip. */
+const BUTTON_W_FLOOR = 32;
+
+/**
+ * The bottom bar's squeeze ladder (M13b).
+ *
+ * The bar is 9 fixed buttons (6 train + 3 stance). At HUD_METRICS that row is
+ * 1036px wide; centred on a narrower viewport it overflowed BOTH edges, putting
+ * the miner, swordsman, hold and retreat buttons physically off-screen (seen
+ * live at 718px). The ladder, widest band first:
+ *
+ *   ≥ trainRow + stanceRow + padding  — one row, full-size buttons (unchanged)
+ *   ≥ trainRow + padding              — one row, squeezed buttons, two-line
+ *                                       labels (`compact`)
+ *   below                             — two stacked rows: train on the BOTTOM
+ *                                       (most-used, closest to the edge),
+ *                                       stance above it; the 6-button train
+ *                                       row sets the button width
+ *
+ * Every threshold is DERIVED from rowWidth + SIDE_PADDING, never a bare
+ * constant — the same rule M9b enforced for the top bar. The renderer and the
+ * click guard both read `bottomBarLayout`/`bottomBarHeight`, so the drawn bar,
+ * the hit areas and the reserved region cannot disagree.
+ */
+export interface BottomBarLayout {
+  /** 1 = one row of 9; 2 = train row + stance row stacked. */
+  rows: 1 | 2;
+  /** Effective button width for THIS viewport (may be < HUD_METRICS.buttonW). */
+  buttonW: number;
+  buttonH: number;
+  gap: number;
+  /** Total bar height: the renderer's background and the click guard use it. */
+  barHeight: number;
+  /** True when labels must render as two lines (name / price-or-reason). */
+  compact: boolean;
+}
+
+export function bottomBarLayout(width: number, metrics: HudMetrics): BottomBarLayout {
+  const allCount = TRAINABLE.length + STANCE_BUTTONS.length;
+  if (width >= rowWidth(allCount, metrics) + 2 * SIDE_PADDING) {
+    return {
+      rows: 1,
+      buttonW: metrics.buttonW,
+      buttonH: metrics.buttonH,
+      gap: metrics.gap,
+      barHeight: metrics.barHeight,
+      compact: false,
+    };
+  }
+  if (width >= rowWidth(TRAINABLE.length, metrics) + 2 * SIDE_PADDING) {
+    const buttonW = Math.floor(
+      (width - 2 * SIDE_PADDING - (allCount - 1) * metrics.gap) / allCount,
+    );
+    return {
+      rows: 1,
+      buttonW,
+      buttonH: metrics.buttonH,
+      gap: metrics.gap,
+      barHeight: metrics.barHeight,
+      compact: true,
+    };
+  }
+  const buttonW = Math.max(
+    BUTTON_W_FLOOR,
+    Math.floor((width - 2 * SIDE_PADDING - (TRAINABLE.length - 1) * metrics.gap) / TRAINABLE.length),
+  );
+  return {
+    rows: 2,
+    buttonW,
+    buttonH: metrics.buttonH,
+    gap: metrics.gap,
+    barHeight: 2 * metrics.buttonH + metrics.gap + 2 * BOTTOM_PAD,
+    compact: true,
+  };
+}
+
+/** The bar height at this width — the single source for renderer and guard. */
+export function bottomBarHeight(width: number, metrics: HudMetrics = HUD_METRICS): number {
+  return bottomBarLayout(width, metrics).barHeight;
 }
 
 export function layoutTrainButtons(width: number, height: number, metrics: HudMetrics): HudRect[] {
-  return layoutRow(TRAINABLE.length, barStartX(width, metrics), height, metrics);
+  const bl = bottomBarLayout(width, metrics);
+  if (bl.rows === 1) {
+    const total = rowWidthOf(TRAINABLE.length + STANCE_BUTTONS.length, bl.buttonW, bl.gap);
+    return layoutRow(TRAINABLE.length, Math.round((width - total) / 2), height, metrics, bl.buttonW);
+  }
+  const startX = Math.round((width - rowWidthOf(TRAINABLE.length, bl.buttonW, bl.gap)) / 2);
+  const y = height - BOTTOM_PAD - bl.buttonH;
+  return layoutRowAt(TRAINABLE.length, startX, y, bl.buttonW, bl.buttonH, bl.gap);
 }
 
 export function layoutStanceButtons(width: number, height: number, metrics: HudMetrics): HudRect[] {
-  const trainW = rowWidth(TRAINABLE.length, metrics) + metrics.gap;
-  return layoutRow(STANCE_BUTTONS.length, barStartX(width, metrics) + trainW, height, metrics);
+  const bl = bottomBarLayout(width, metrics);
+  if (bl.rows === 1) {
+    const trainW = rowWidthOf(TRAINABLE.length, bl.buttonW, bl.gap) + bl.gap;
+    const total = rowWidthOf(TRAINABLE.length + STANCE_BUTTONS.length, bl.buttonW, bl.gap);
+    return layoutRow(STANCE_BUTTONS.length, Math.round((width - total) / 2) + trainW, height, metrics, bl.buttonW);
+  }
+  const startX = Math.round((width - rowWidthOf(STANCE_BUTTONS.length, bl.buttonW, bl.gap)) / 2);
+  const y = height - BOTTOM_PAD - bl.buttonH - bl.gap - bl.buttonH;
+  return layoutRowAt(STANCE_BUTTONS.length, startX, y, bl.buttonW, bl.buttonH, bl.gap);
+}
+
+/**
+ * A squeezed train button's TWO-LINE label (M13b).
+ *
+ * `trainButtonState` composes "name price" for the wide row; a squeezed button
+ * cannot hold that on one line, so the name goes on top and the price below.
+ * A DISABLED button shows the reason instead of the price: the price is what
+ * the player already knows, the reason is what tells them what to fix.
+ */
+export function compactTrainLabel(
+  typeId: UnitTypeId,
+  enabled: boolean,
+  reason: string,
+): { line1: string; line2: string } {
+  const def = UNITS[typeId];
+  return {
+    line1: t(def.nameKey),
+    line2: enabled ? `${def.goldCost}` : reason,
+  };
 }
 
 /**
