@@ -13,3 +13,5 @@ coverage/
 !.vscode/extensions.json
 .worktrees/
 .superpowers/
+
+.tmp/
