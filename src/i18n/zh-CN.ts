@@ -57,6 +57,10 @@ export const ZH_CN: Record<string, string> = {
   'menu.sfxPref': '音效',
   'menu.sfxOn': '开',
   'menu.sfxOff': '关',
+  // Renderer preference (M14): pixel-art idle sprites vs classic skeleton.
+  'menu.rendererPref': '形象',
+  'menu.rendererSprite': '精灵',
+  'menu.rendererSkeleton': '骨架',
 
   // Level names — keys follow `level.<levelId>.name`.
   'level.level-1.name': '第一关',
