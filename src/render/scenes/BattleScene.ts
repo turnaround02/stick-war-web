@@ -37,6 +37,8 @@ import { FixedTimestep, advanceWorld, type GameSpeed } from '../timestep';
 import { spawnGhost } from '../ghost';
 import { createProjectileLayer, type ProjectileLayer } from '../projectile';
 import { createStickman, stickmanHipHeight, type Stickman } from '../stickman/skeleton';
+import { createSpriteStickman, type SpriteStickman } from '../stickman/sprite';
+import { shouldUseSprite } from '../stickman/switch';
 import { attackPhase } from '../stickman/poses';
 import {
   createAudioManager,
@@ -71,6 +73,13 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
   private particles!: ParticleLayer;
   private groundY = 0;
   private stickmen = new Map<number, Stickman>();
+  /**
+   * M14: pixel-art idle sprites, one per unit id. A unit has EITHER a
+   * skeleton OR a sprite at any moment, never both — `syncStickmen` swaps
+   * them as the unit's state changes. The sprite is only built for the
+   * states where a static portrait is acceptable (idle / stunned).
+   */
+  private sprites = new Map<number, SpriteStickman>();
   private timestep = new FixedTimestep();
   private tickLabel!: Phaser.GameObjects.Text;
   private projectiles!: ProjectileLayer;
@@ -176,6 +185,10 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.paused = false;
     this.elapsedTicks = 0;
     this.stickmen.clear();
+    // M14: sprites are per-match objects too — clear them so a replay does
+    // not leave stale sprites behind (they would keep rendering).
+    for (const sprite of this.sprites.values()) sprite.destroy();
+    this.sprites.clear();
     this.lastTypeId.clear();
     this.lastFacing.clear();
 
@@ -802,22 +815,60 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.groundLine.fillRect(base.x - 20, this.groundY - 60, 40, 60 * healthFraction);
   }
 
-  /** Creates or removes stickmen so the view matches the sim's unit list exactly. */
+  /**
+   * Creates or removes stickmen so the view matches the sim's unit list exactly.
+   *
+   * M14: each unit is drawn by EITHER the pixel-art sprite (idle / stunned) or
+   * the skeletal rig (move / gather / attack), never both. `shouldUseSprite`
+   * is the pure decision; the swap destroys the outgoing representation so
+   * there is no ghost image left behind. The choice depends on the saved
+   * renderer preference, which is re-read each frame from `saveData`.
+   */
   private syncStickmen(): void {
     const alive = new Set<number>();
+    const pref = this.saveData.renderer;
 
     for (const unit of this.world.units) {
       alive.add(unit.id);
-      let stickman = this.stickmen.get(unit.id);
-      if (!stickman) {
-        stickman = createStickman(this, unit.typeId);
-        this.stickmen.set(unit.id, stickman);
-      }
-
       const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
-      stickman.container.setPosition(x, this.groundY - stickmanHipHeight(unit.typeId));
-      stickman.setFacing(unit.side === 'player' ? 1 : -1);
-      stickman.apply(unit.state, this.phaseOf(unit));
+      const facing: 1 | -1 = unit.side === 'player' ? 1 : -1;
+      const wantSprite = shouldUseSprite(pref, unit.state);
+
+      if (wantSprite) {
+        // Drop the skeleton if the unit was previously walking/attacking.
+        const old = this.stickmen.get(unit.id);
+        if (old) {
+          old.destroy();
+          this.stickmen.delete(unit.id);
+        }
+        let sprite = this.sprites.get(unit.id);
+        if (!sprite) {
+          const created = createSpriteStickman(this, unit.typeId, this.groundY);
+          if (created) {
+            sprite = created;
+            this.sprites.set(unit.id, sprite);
+          }
+        }
+        if (sprite) {
+          sprite.setPosition(x, this.groundY);
+          sprite.setFacing(facing);
+        }
+      } else {
+        // Drop the sprite if the unit was previously idle.
+        const oldSprite = this.sprites.get(unit.id);
+        if (oldSprite) {
+          oldSprite.destroy();
+          this.sprites.delete(unit.id);
+        }
+        let stickman = this.stickmen.get(unit.id);
+        if (!stickman) {
+          stickman = createStickman(this, unit.typeId);
+          this.stickmen.set(unit.id, stickman);
+        }
+        stickman.container.setPosition(x, this.groundY - stickmanHipHeight(unit.typeId));
+        stickman.setFacing(facing);
+        stickman.apply(unit.state, this.phaseOf(unit));
+      }
     }
 
     // Anything that vanished died this tick: animate a ghost at its last spot.
@@ -826,21 +877,32 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       const ghostX = stickman.container.x;
       stickman.destroy();
       this.stickmen.delete(id);
-
-      const typeId = this.lastTypeId.get(id);
-      if (typeId) {
-        spawnGhost(this, ghostX, this.groundY, typeId, this.lastFacing.get(id) ?? 1);
-        // M13: the unit shatters at its last spot (screen-only feedback).
-        this.particles.spawnDeath(typeId, ghostX, this.groundY, id * 31 + this.world.tick);
-      }
-      this.lastTypeId.delete(id);
-      this.lastFacing.delete(id);
+      this.spawnDeathFor(id, ghostX);
+    }
+    for (const [id, sprite] of this.sprites) {
+      if (alive.has(id)) continue;
+      const ghostX = sprite.obj.x;
+      sprite.destroy();
+      this.sprites.delete(id);
+      this.spawnDeathFor(id, ghostX);
     }
 
     for (const unit of this.world.units) {
       this.lastTypeId.set(unit.id, unit.typeId);
       this.lastFacing.set(unit.id, unit.side === 'player' ? 1 : -1);
     }
+  }
+
+  /** Ghost + shatter for a unit that just left the sim, at its last x. */
+  private spawnDeathFor(id: number, ghostX: number): void {
+    const typeId = this.lastTypeId.get(id);
+    if (typeId) {
+      spawnGhost(this, ghostX, this.groundY, typeId, this.lastFacing.get(id) ?? 1);
+      // M13: the unit shatters at its last spot (screen-only feedback).
+      this.particles.spawnDeath(typeId, ghostX, this.groundY, id * 31 + this.world.tick);
+    }
+    this.lastTypeId.delete(id);
+    this.lastFacing.delete(id);
   }
 
   /**
