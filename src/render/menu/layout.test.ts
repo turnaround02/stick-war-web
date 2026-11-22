@@ -7,6 +7,8 @@ import {
   nextSpeed,
   speedToggleLabel,
   sfxToggleLabel,
+  nextRenderer,
+  rendererToggleLabel,
   canResetProgress,
   resumeLevelIndex,
   MENU_LAYOUT,
@@ -157,11 +159,34 @@ describe('menuToggleRects', () => {
     expect(sfx.h).toBe(MENU_LAYOUT.toggleH);
   });
 
-  it('stays inside the panel at small viewports', () => {
-    for (const [w, h] of [[800, 600], [640, 480]] as const) {
+  it('places the renderer toggle on its own full-width row below them', () => {
+    const { speed, sfx, renderer } = menuToggleRects(1280, 720);
+    expect(renderer.y).toBeGreaterThanOrEqual(speed.y + speed.h);
+    expect(renderer.y).toBeGreaterThanOrEqual(sfx.y + sfx.h);
+    // Full content width, so it is wider than either half toggle.
+    expect(renderer.w).toBeGreaterThan(speed.w);
+  });
+
+  it('never overlaps the renderer toggle with the speed/sfx row', () => {
+    for (const [w, h] of [[1280, 720], [800, 600], [640, 480], [532, 960]] as const) {
+      const { speed, sfx, renderer } = menuToggleRects(w, h);
+      for (const top of [speed, sfx]) {
+        const overlap = !(
+          renderer.x + renderer.w <= top.x ||
+          top.x + top.w <= renderer.x ||
+          renderer.y + renderer.h <= top.y ||
+          top.y + top.h <= renderer.y
+        );
+        expect(overlap, `${w}x${h}`).toBe(false);
+      }
+    }
+  });
+
+  it('stays inside the panel at small viewports (including 532px)', () => {
+    for (const [w, h] of [[800, 600], [640, 480], [532, 960]] as const) {
       const panel = menuPanelRect(w, h);
-      const { speed, sfx } = menuToggleRects(w, h);
-      for (const r of [speed, sfx]) {
+      const { speed, sfx, renderer } = menuToggleRects(w, h);
+      for (const r of [speed, sfx, renderer]) {
         expect(r.x, `${w}x${h}`).toBeGreaterThanOrEqual(panel.x);
         expect(r.x + r.w, `${w}x${h}`).toBeLessThanOrEqual(panel.x + panel.w);
         expect(r.y + r.h, `${w}x${h}`).toBeLessThanOrEqual(panel.y + panel.h);
@@ -169,9 +194,36 @@ describe('menuToggleRects', () => {
     }
   });
 
+  it('keeps the aux button below the renderer toggle', () => {
+    for (const [w, h] of [[1280, 720], [800, 600], [640, 480]] as const) {
+      const { renderer } = menuToggleRects(w, h);
+      const aux = menuAuxRect(w, h);
+      expect(aux.y, `${w}x${h}`).toBeGreaterThanOrEqual(renderer.y + renderer.h);
+    }
+  });
+
   it('never has a negative width', () => {
-    const { speed } = menuToggleRects(240, 720);
+    const { speed, renderer } = menuToggleRects(240, 720);
     expect(speed.w).toBeGreaterThanOrEqual(0);
+    expect(renderer.w).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('nextRenderer', () => {
+  it('cycles sprite → skeleton → sprite', () => {
+    expect(nextRenderer('sprite')).toBe('skeleton');
+    expect(nextRenderer('skeleton')).toBe('sprite');
+  });
+
+  it('recovers from an out-of-range value to the default sprite', () => {
+    expect(nextRenderer('wireframe' as never)).toBe('sprite');
+  });
+});
+
+describe('rendererToggleLabel', () => {
+  it('labels the renderer toggle with the value that will apply', () => {
+    expect(rendererToggleLabel('sprite')).toBe('形象: 精灵');
+    expect(rendererToggleLabel('skeleton')).toBe('形象: 骨架');
   });
 });
 
