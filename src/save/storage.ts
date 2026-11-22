@@ -23,6 +23,13 @@ export const SAVE_VERSION = 1;
 
 export type GameSpeedPref = 1 | 2 | 4;
 
+/**
+ * Which renderer the user prefers for stickmen (M14):
+ * - `sprite`   – idle/stand pose uses a pixel-art image (style B), walk/attack stay skeletal.
+ * - `skeleton` – classic stick-figure rig for every state.
+ */
+export type RendererPref = 'sprite' | 'skeleton';
+
 export interface SaveData {
   version: number;
   /** Furthest level index reached (progress = furthest unlocked). */
@@ -36,6 +43,11 @@ export interface SaveData {
    * (pause/result): this survives across sessions; the gate does not.
    */
   sfxMuted: boolean;
+  /**
+   * Preferred renderer (M14). Lenient merge: missing → `sprite` (the new
+   * default). Does NOT bump SAVE_VERSION (same rule as sfxMuted).
+   */
+  renderer: RendererPref;
 }
 
 export const DEFAULT_SAVE: SaveData = {
@@ -44,6 +56,7 @@ export const DEFAULT_SAVE: SaveData = {
   endlessBestWave: 0,
   speedPreference: 1,
   sfxMuted: false,
+  renderer: 'sprite',
 };
 
 /** The subset of the Storage API this module needs. */
@@ -93,6 +106,11 @@ export function loadSave(storage: StorageLike): SaveData {
       // its progress and simply defaults the new one. Bumping the version
       // would discard every existing save over a one-field addition.
       sfxMuted: typeof obj.sfxMuted === 'boolean' ? obj.sfxMuted : DEFAULT_SAVE.sfxMuted,
+      // M14: lenient merge — missing or wrong type falls back to the default
+      // ('sprite'). A v1 save without this field keeps its progress.
+      renderer: obj.renderer === 'sprite' || obj.renderer === 'skeleton'
+        ? obj.renderer
+        : DEFAULT_SAVE.renderer,
     };
   } catch {
     // Corrupt JSON, a throwing getItem, anything else: the game must still run.
