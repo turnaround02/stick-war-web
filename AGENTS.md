@@ -106,6 +106,32 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M12 打磨收尾**（已上线，**905 tests**；眩晕脉冲圈、菜单「操作说明」浮层、help 纯几何模块）
 - [x] **M13 视觉打磨**（已上线，**924 tests**；黄昏视差背景、战斗粒子、HUD 皮肤。**提交时未写交付记录——2026-11-15 项目分析时发现，见下条一并补记**）
 - [x] **M13b 底栏窄视口修复**（**955 tests**；底部 9 键挤压阶梯 + clickGuard 底部保留区改布局推导）
+- [x] **M14 像素精灵管线 step-1**（**974 tests**；flood-fill 抠图 tol=16、idle/stunned 精灵替换、菜单「形象」开关、`renderer` 存档字段；step-2 全帧动画另立任务）
+
+## M14 已交付（像素精灵管线 step-1）
+
+用户想要像素风形象。Grilling 收敛为：风格 B（现代 HD 像素，Kingdom/Dead Cells 美学，左侧暖橙轮缘光呼应 M13 黄昏背景）、**只替换静止姿态**（idle/stunned 用精灵图，移动/采集/攻击/死亡保持骨骼动画）、纯函数选择器 + 默认开、存档持久化、一次性交付。全程零 sim 改动。
+
+- **样张生成**（`docs/samples/`，7 张 1024² PNG）：6 兵种 style-B + 巨人 style-A 备选。提示词公式：「Modern HD pixel art style (like Kingdom or Dead Cells aesthetic): smooth silhouette with subtle gradients… strong rim lighting in warm orange from the left (dusk scene). Solid dark background (#1a1d24). Single character, centered, full body, crisp pixel edges.」——**初版 miner/swordsman 生成了半身像**，尽管提示词写了 full body；重生成时把「FULL BODY character from head to feet, wide shot」提到最前才稳定产出全身（bbox 探针验证：角色纵跨 1024 中的 438-828px）。
+- **抠图策略三次演进**（`scripts/make-sprites.ts`）：①角块采样 + 全局容差 60 → 轮缘光晕残留噪点；②从边框 flood-fill（区域生长）→ 明显更好，但 **tol≥36 时巨人深色铠甲被吃穿**（直方图探针：巨人内部与背景色距 <40 的像素达 98 万+——铠甲和靴子距背景只有 20-40 RGB）；③最终 **flood tol=16 + 只保留最大 4-连通块 + 封闭背景色孔洞清除**。tol=16 能干净去背是因为背景近乎均匀（四角采样 10-24 RGB）；背景的「均匀」才是低容差可行的前提，若重生成样张必须重跑 tol 扫描。
+- **管线**：`npm run sprites`（tsx + sharp，均为 devDependency）→ `public/sprites/<type>.png`（alpha bbox 裁切 + 最近邻缩放到 targetH 48/巨人 72，对齐 VISUAL_SCALE 1.5）。构建一次性产物，运行时由 Phaser 加载，不进 sim、无确定性影响。
+- `render/stickman/switch.ts`（新）— 纯决策 `shouldUseSprite(pref, state)`：skeleton 偏好恒 false；sprite 偏好仅 `idle`/`stunned` 为 true。9 条测试钉死 6 状态 × 2 偏好全矩阵（铁律 #7）。
+- `render/stickman/sprite.ts`（新）— `createSpriteStickman`：贴图缺失返回 **null → 调用方回落骨骼**（游戏永不出现空白单位）；origin (0.5,1) 脚底锚点，**无需 hip 偏移**（与骨骼容器定位不同）；`setFlipX` 朝向；depth 0 与骨骼一致。
+- `save/storage.ts` — `RendererPref = 'sprite' | 'skeleton'`、`SaveData.renderer`（默认 'sprite'）、宽容合并（缺字段/垃圾值回落默认），**SAVE_VERSION 保持 1**（M7b 同一条规则：加字段不升版本）。
+- `render/scenes/BootScene.ts` — preload 加载 6 张精灵（`sprites/<typeId>.png`）；加载失败静默 → 骨骼回落。
+- `render/scenes/BattleScene.ts` — `syncStickmen()` **每帧**重读 `saveData.renderer`，按 `shouldUseSprite` 交换表示（销毁退出的那侧，不留幽灵图）；`create()` 与 SHUTDOWN 清空两表；死亡清理对两张表各走一遍（幽灵从哪侧销毁都取 `container.x`/`obj.x`）。
+- `render/menu/layout.ts` — 第三开关「形象」独占整行（速度+音效并排、形象单独一行）；**640×480 面板溢出由测试抓住** → 新增 `menuRowHeight()` 行高挤压（MIN_ROW_H=28，低于此视口在支持包线外允许溢出）+ `menuChromeH()` 单一来源（标题 + 3 个 gap + 2 行开关 + 按钮 + 边距的和只算一次，面板高度与行布局共用）。
+- `i18n/zh-CN.ts` — `menu.rendererPref`「形象」/`menu.rendererSprite`「精灵」/`menu.rendererSkeleton`「骨架」。
+- 全量门禁：**974 tests（64 文件）** 全绿、tsc 0、eslint 干净、build 2.38s 且 `dist/sprites/*` 在。
+
+### M14 的关键设计（容易忘的）
+
+- **混合渲染器的「每帧重读偏好」**：开关切换不需要重启对局、不需要刷新——`syncStickmen` 每帧从存档取偏好再决定表示，切换在下一帧立即生效。偏好是用户设置，不是对局状态，所以不进 sim（铁律 #4 的另一面）。
+- **「买不起就回落」的姊妹条款「贴图缺失就回落」**：精灵管线是离线生成物，任何一环没跑（新 clone、新兵种忘了加进 SPRITES 表、preload 404）都不该砸游戏——`createSpriteStickman` 返回 null，调用方直接走骨骼分支。空白单位是不可接受的失败模式。
+- **抠图的正确抽象是「区域生长」不是「全局谓词」**：背景和轮缘光晕共享暗色域，全局容差要么留噪点（松）要么吃人物（紧）；flood-fill 从边框出发天然停在光晕处，让辉光贴着角色保留。同族教训：局部信息（某像素像背景）不等于全局判定（它属于背景）。
+- **maxi 连通块 + 孔洞清除是 flood-fill 的补丁不是重复**：连通块丢掉与人物脱落的孤立光斑；孔洞清除处理 flood 够不着的封闭区（光晕环包住的背景色口袋）。两者都只删「颜色仍在容差内」的像素，不碰人物。
+- **工具链 gotcha（第三次应验）**：tsx 内联 `-e` 不支持顶层 await（CJS 互操作），必须写真 .ts 文件；build 偶发 esbuild 临时文件 Access denied → `$env:TEMP="$PWD\.tmp\t"`（.gitignore 已含 `.tmp/`）；嵌入式浏览器视口卡在 253px 无法肉眼验收 → 用 sharp 拼接触表 + `view_image` 替代。
+- **step-2（全帧动画）明确不在本轮**：6 兵种 × 行走/攻击/死亡序列帧 + 图集 + `skeleton.ts` 重写是独立 M 级任务，需要新 grilling 轮——先验证静态精灵的观感再投入。
 
 ## M13b 已交付（底栏窄视口修复）
 
