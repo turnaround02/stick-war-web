@@ -28,6 +28,7 @@ describe('DEFAULT_SAVE', () => {
       endlessBestWave: 0,
       speedPreference: 1,
       sfxMuted: false,
+      renderer: 'sprite',
     });
   });
 });
@@ -116,12 +117,51 @@ describe('loadSave', () => {
     expect(() => loadSave(hostile)).not.toThrow();
     expect(loadSave(hostile)).toEqual(DEFAULT_SAVE);
   });
+
+  // M14: the renderer field obeys the same lenient-merge contract as sfxMuted.
+  it('falls back renderer to the default when the field is absent (pre-M14 saves)', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, furthestLevel: 2, endlessBestWave: 4, speedPreference: 2 }),
+    });
+    const out = loadSave(s);
+    expect(out.renderer).toBe(DEFAULT_SAVE.renderer);
+    expect(out.renderer).toBe('sprite');
+    expect(out.furthestLevel).toBe(2); // progress preserved
+  });
+
+  it('preserves an explicit skeleton preference', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, renderer: 'skeleton' }),
+    });
+    expect(loadSave(s).renderer).toBe('skeleton');
+  });
+
+  it('preserves an explicit sprite preference', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, renderer: 'sprite' }),
+    });
+    expect(loadSave(s).renderer).toBe('sprite');
+  });
+
+  it('falls back renderer on a garbage type', () => {
+    const s = memoryStorage({
+      [SAVE_KEY]: JSON.stringify({ version: 1, renderer: 'wireframe' }),
+    });
+    expect(loadSave(s).renderer).toBe('sprite');
+  });
 });
 
 describe('saveGame', () => {
   it('round-trips through storage', () => {
     const s = memoryStorage();
-    const data: SaveData = { version: 1, furthestLevel: 2, endlessBestWave: 12, speedPreference: 4, sfxMuted: true };
+    const data: SaveData = {
+      version: 1,
+      furthestLevel: 2,
+      endlessBestWave: 12,
+      speedPreference: 4,
+      sfxMuted: true,
+      renderer: 'skeleton',
+    };
     saveGame(s, data);
     expect(loadSave(s)).toEqual(data);
   });
