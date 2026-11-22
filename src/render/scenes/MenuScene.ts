@@ -10,6 +10,8 @@ import {
   nextSpeed,
   speedToggleLabel,
   sfxToggleLabel,
+  nextRenderer,
+  rendererToggleLabel,
   canResetProgress,
   type MenuRow,
 } from '../menu/layout';
@@ -74,6 +76,12 @@ export class MenuScene extends Phaser.Scene {
       const cur = loadSave(this.saveStorage);
       return { ...cur, sfxMuted: !cur.sfxMuted };
     }, () => sfxToggleLabel(loadSave(this.saveStorage).sfxMuted));
+    // M14: renderer preference (pixel-art sprite vs skeleton). Same pattern as
+    // the other two — the label is always re-derived from the save.
+    this.buildToggle(toggles.renderer, () => {
+      const cur = loadSave(this.saveStorage);
+      return { ...cur, renderer: nextRenderer(cur.renderer) };
+    }, () => rendererToggleLabel(loadSave(this.saveStorage).renderer));
 
     // Reset progress: offered only when there IS progress, and it writes the
     // default save — the same tolerant write path the game already uses.
