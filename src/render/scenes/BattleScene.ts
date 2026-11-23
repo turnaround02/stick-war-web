@@ -118,7 +118,14 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
    * this tick. `per-tick cap` and the `muted` gate are both in the detector
    * / pure-decision helpers, never here.
    */
-  private audio = createAudioManager();
+  /**
+   * Per-match audio manager. Rebuilt in create(), NOT a field initializer:
+   * SHUTDOWN destroys it, and a field initializer runs only once per page load
+   * — after any replay/menu round-trip the scene reuses this instance with a
+   * destroyed manager whose `unlock()` is permanently locked out, killing all
+   * SFX for every later match (M14b).
+   */
+  private audio!: ReturnType<typeof createAudioManager>;
   private readonly sfxUnlockEvents: AudioUnlockEvent[] = [];
   private sfxUnlocked = false;
   /** Previous-tick world snapshot for `diffSfx`. Set in create() to the
@@ -192,10 +199,22 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     this.lastTypeId.clear();
     this.lastFacing.clear();
 
-    // M5c: reset SFX state for the new match. The AudioContext itself persists
-    // across restarts (re-creating it per match would be wasteful and could
-    // lose the unlocked state); only the per-match diff window resets.
-    this.sfxUnlockEvents.length = 0;
+    // M14b: the confirm overlay and multi-touch counters are per-match state
+    // too. `menuConfirmOpen` is the freeze bug: leaving through the overlay's
+    // "confirm" sets it true, nothing reset it, and the next match's update()
+    // took the `menuConfirmOpen` branch — zero ticks, all clicks swallowed,
+    // with the overlay itself invisible (destroyed and rebuilt hidden). The
+    // player saw a rendered battlefield that never advanced and would not
+    // respond, for every match after one menu round-trip, until a page reload.
+    this.menuConfirmOpen = false;
+    this.downPointers = 0;
+
+    // M14b: a fresh manager per match — the previous one was destroyed in
+    // SHUTDOWN. Cost: after any restart the context is rebuilt on the first
+    // key/pointer input (the existing Q4 rule, not a new compromise).
+    this.audio = createAudioManager();
+
+    // M5c: reset SFX state for the new match.
     this.sfxUnlocked = false;
     this.sfxPrev = snapshotWorld(this.world);
     // M7b: seed the gate from the saved preference — not a hard `false`, which
