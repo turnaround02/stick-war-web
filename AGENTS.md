@@ -107,6 +107,39 @@ npm run lint     # ESLint（含 sim 边界检查）
 - [x] **M13 视觉打磨**（已上线，**924 tests**；黄昏视差背景、战斗粒子、HUD 皮肤。**提交时未写交付记录——2026-11-15 项目分析时发现，见下条一并补记**）
 - [x] **M13b 底栏窄视口修复**（**955 tests**；底部 9 键挤压阶梯 + clickGuard 底部保留区改布局推导）
 - [x] **M14 像素精灵管线 step-1**（**974 tests**；flood-fill 抠图 tol=16、idle/stunned 精灵替换、菜单「形象」开关、`renderer` 存档字段；step-2 全帧动画另立任务）
+- [x] **M14b 冻结 bug 热修**（**974 tests**；`menuConfirmOpen`/`downPointers` 跨对局泄漏 → 「菜单→确认→重开」后对局永久冻结；audio manager 改每对局新建 → SHUTDOWN destroy 后音效永久锁死）
+- [x] **M15 全帧动画 step-2**（**978 tests**；6 兵种 walk + 5 兵种 attack 条带、峰谷切帧管线、攻击接触帧钉伤害 tick、死亡精灵化、switch 契约简化为纯看偏好）
+
+## M15 已交付（全帧动画 step-2）
+
+M14b 用户验收：精灵渲染 ✓（idle 精灵、移动切骨骼）——step-1 观感过关，解锁 step-2。Grilling 收敛为：只升级 `move` + `attack` 两态（gather 复用 walk，death 保持 ghost+碎裂）、6 帧（整除 24-tick move 周期）、单图 sprite sheet 产出、精灵单位全状态不再出现骨骼、验收口径触表→纯模块→门禁→浏览器。
+
+- **生成**（`docs/samples/sheets/`，11 张 1024² PNG）：6 兵种 walk + 5 兵种 attack（miner 无攻击态）。提示词在 step-1 公式上加两个关键短语：「THE SAME IDENTICAL CHARACTER in every frame」（帧间一致性）与「generous spacing between frames so they never touch」（切帧余量）。实测单图生成的一致性远超预期——同一角色同装备同配色，仅姿态差异。
+- **切帧策略三次演进**（`scripts/make-sheets.ts`）：①「连续非空列分段」→ 矛兵 sheet 脚下有连续地面条带 + 矛尖伸入邻帧间隙，全图连通成 1 块；②「列直方图阈值 100」→ 剑士攻击 sheet 举剑帧把 60-90 px/列的密度抬进间隙，阈值无法同时满足走/攻两类；③最终 **「平滑直方图 + 已知帧数峰谷切割」**：帧数是硬契约（掉一帧 = 明显错误的循环），平滑 15px 杀死单列杂讯保留人物鼓包，取 expectedFrames 个最密峰、峰间最低谷切割。**桥接像素比两侧人体系 thin，谷底永远存在**——这是比调阈值可靠的根本原因。
+- **帧级共性框**：每帧裁到 COMMON box（宽 = 最宽帧、高 = 最高帧、底边对齐全帧最大 y1），运行时 strip 是均匀网格且脚底同一水平线——跨帧行走不跳动、walk/attack 两条 strip 等高切换不闪位。
+- `render/stickman/anim.ts`（新）— 纯帧索引：`frameIndexFor(phase)`（walk/gather 均匀映射，`%1` 环回，垃圾值回落帧 0）、`attackFrameIndex(windupLeft, cooldownLeft, windup, cooldown)`（复用 `poses.attackPhase`——接触契约单一真相，CONTACT_PHASE=0.5 钉在帧 3 = 伤害 tick；风干段帧 0-2、恢复段帧 3-5）。11 条测试。
+- `render/stickman/switch.ts` — 契约**简化**：`shouldUseSprite(pref)` 不再吃 state——strip 管线覆盖全部状态后，「状态白名单」没有存在意义；死亡是渲染层精灵幽灵，任何 sim 状态都有精灵表示。9→2 条测试（钉住「状态不得渗回判定」）。
+- `render/stickman/sprite.ts` — `createSpriteStickman` 升级为条带播放器：walk 缺失整类型回落骨骼；attack strip 缺失**降级用 walk 帧**（保留 5/6 生命的像素观感优于整类型回骨）；`apply(state, phase, ticks?)` 按 `UNIT_TICKS[typeId]` 映射攻击帧；帧名 `String(i)` 与 BootScene 切帧一致。
+- `render/scenes/BootScene.ts` — preload 用**普通 image**（帧宽因兵种 18-42px 而异，无法在 load 时写死 frameWidth；Phaser parser 对 0 会切出全废帧），`create()` 用 `texture.add(String(i), ...)` 手动切均匀网格，缺失静默回落。
+- `render/scenes/BattleScene.ts` — sprite 分支传入 attack tick 计数器；**死亡双路**：骨骼单位走 `spawnGhost`（原样），精灵单位走新 `spawnSpriteDeath`（末帧 alpha 渐隐 + 下沉 6px + 同款碎裂粒子）——精灵战场里爆出骨骼幽灵是风格断裂，Q6/B 的核心动机。
+- `scripts/make-sheets.ts`（新）+ `npm run sheets` — 与 make-sprites.ts 同构的 sheet 管线（flood tol=16、每帧行内最大连通块、共性框、最近邻缩放 48/巨人 72）。
+- 全量门禁：**978 tests（65 文件）** 全绿、tsc 0、eslint 干净、build 2.62s 且 `dist/sprites-sheets/*` 11 条全在。
+
+### M15 的关键设计（容易忘的）
+
+- **已知帧数把「分割」变成「切割」**：expectedFrames 是硬契约，先找峰再谷底切割，永远输出恰好 N 块——帧数不匹配直接 process.exit(1)（掉帧 = 明显错误的循环，宁可炸在管线也不上线五帧行走）。这是「数据绕开 vs 修机制」的镜像：这里修机制是因为帧数本来就已知，白扔约束才是浪费。
+- **桥接是 thin 不是 absent**：矛兵地面条带 ~20px/列、剑士举剑 60-90px/列——它们比人体系（≥100）细但不为零。任何「有没有像素」判定都会被桥接骗过，「密度对比」才是鲁棒判定。同族教训第三次应验：局部信息 ≠ 全局归属。
+- **攻击接触帧的契约原样平移**：`attackFrameIndex` 内部调 `poses.attackPhase` 而非重写相位算术——CONTACT_PHASE 的「刀刃接触 = 伤害 tick」契约（M2 两次教训）在精灵渲染器里由同一个函数保证，两个渲染器永不漂移。
+- **精灵单位死亡也必须是精灵**（Q6/B）：表示切换的粒度是「偏好级」不是「状态级」——任何在表示之间来回切换的瞬间都是可见的风格断裂。sprite ghost = 末帧 + tween 淡出下沉，比骨骼 ghost 少一个 `createStickman` 调用，实现反而更短。
+- **Phaser 手动切帧优于假 spritesheet**：`load.spritesheet` 的 frameWidth 是 load 时硬约束，而 strips 的帧宽是管线产出的派生值；用 `load.image` + `texture.add` 把「切帧」推迟到纹理已知的 create() 里，消除了「两个来源各算一次帧宽」这层不必要的一致性义务。
+
+## M14b 已交付（冻结 bug 热修）
+
+用户验收 M14 时发现：切回骨架后重开对局卡住。实测根因与「骨架」无关——**任何**「HUD 菜单 → 确认 → 重开」路径都会毒化之后所有对局（直至刷新页面）：
+
+- `menuConfirmOpen` 是字段初始化器（场景实例只构造一次），`create()` 不重置它；确认浮层的「确认」按钮直接 `scene.start('Menu')` 没有复位。下一局 `update()` 取 `menuConfirmOpen` 分支 → 0 tick、所有点击被吞，而浮层本体已销毁重建为隐藏——画面正常渲染但永远不动。
+- 同流发现：`audio` 也是字段初始化器，SHUTDOWN 调 `destroy()` 后旧实例 `unlock()` 幂等锁死——任何重玩后音效永久死掉（M5c 注释声称「AudioContext 跨 restart 持久」与代码自相矛盾）。
+- 修法：`create()` 重置 `menuConfirmOpen`/`downPointers`；`audio` 改 `create()` 内新建（每对局新实例；代价是重开后需一次输入解锁——spec Q4 既有规则）。两个 bug 都是「字段初始化器 ≠ 每对局状态」的同一根因：Phaser 场景实例跨 restart 复用，`create()` 才是构造函数。
 
 ## M14 已交付（像素精灵管线 step-1）
 

@@ -1,34 +1,27 @@
 /**
- * Pure decision: which renderer to use for a given unit state + preference.
+ * Pure decision: which renderer to use for a unit (M15 step-2).
+ *
  * No Phaser, no DOM — unit-testable in node (iron rule #7).
  *
- * The rule (Q2 "only replace the static pose"):
- *   - When the preference is `skeleton`, ALWAYS use the skeleton.
- *   - When the preference is `sprite`, use the sprite image for the
- *     `idle` and `stunned` states; fall back to the skeleton for
- *     `move`, `gather`, `attack`, `dead`.
+ * M14 shipped a hybrid: sprites for idle/stunned, skeleton for everything
+ * else. M15 replaces that with FULL-FRAME sprite animation (walk + attack
+ * strips, gather reusing walk), so a sprite-preferred unit is ALWAYS drawn as
+ * a sprite — the skeleton only appears when the preference is `skeleton` or
+ * when a strip is missing (per-type fallback in sprite.ts, the same
+ * "missing asset falls back" rule as M14).
  *
- * `idle` and `stunned` are both standing still, so a static portrait is
- * honest. `move` / `gather` need the walk cycle and `attack` needs the swing,
- * so they stay skeletal.
+ * The contract got SIMPLER, not more complex: the state no longer matters.
+ * Death is a render-layer ghost (sprite frame fade for sprite units), so
+ * every sim state has a sprite representation.
  */
 
-import type { UnitState } from '../../sim/types';
 import type { RendererPref } from '../../save/storage';
-
-/** States for which a static portrait is acceptable (no walk / no attack). */
-export const SPRITE_STATES: ReadonlySet<UnitState> = new Set<UnitState>([
-  'idle',
-  'stunned',
-]);
 
 /**
  * Decide which renderer to use.
  * @param pref  The user's saved preference.
- * @param state The unit's current sim state.
- * @returns `true` if the sprite image should be shown for this unit right now.
+ * @returns `true` if the unit should be drawn as a pixel-art sprite.
  */
-export function shouldUseSprite(pref: RendererPref, state: UnitState): boolean {
-  if (pref === 'skeleton') return false;
-  return SPRITE_STATES.has(state);
+export function shouldUseSprite(pref: RendererPref): boolean {
+  return pref === 'sprite';
 }

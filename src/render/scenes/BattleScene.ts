@@ -851,10 +851,12 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       alive.add(unit.id);
       const x = unit.prevX + (unit.x - unit.prevX) * this.timestep.alpha;
       const facing: 1 | -1 = unit.side === 'player' ? 1 : -1;
-      const wantSprite = shouldUseSprite(pref, unit.state);
+      const wantSprite = shouldUseSprite(pref);
 
       if (wantSprite) {
-        // Drop the skeleton if the unit was previously walking/attacking.
+        // Drop the skeleton if the unit was previously a skeleton (only when
+        // the type's strips are missing — a sprite-preferred unit is ALWAYS a
+        // sprite in M15; there is no state-based swap any more).
         const old = this.stickmen.get(unit.id);
         if (old) {
           old.destroy();
@@ -871,9 +873,14 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
         if (sprite) {
           sprite.setPosition(x, this.groundY);
           sprite.setFacing(facing);
+          sprite.apply(unit.state, this.phaseOf(unit), {
+            windupTicksLeft: unit.windupTicksLeft,
+            cooldownTicksLeft: unit.cooldownTicksLeft,
+          });
         }
       } else {
-        // Drop the sprite if the unit was previously idle.
+        // Drop the sprite if the unit was previously a sprite (preference
+        // changed, or this type's strips are missing).
         const oldSprite = this.sprites.get(unit.id);
         if (oldSprite) {
           oldSprite.destroy();
@@ -903,7 +910,7 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
       const ghostX = sprite.obj.x;
       sprite.destroy();
       this.sprites.delete(id);
-      this.spawnDeathFor(id, ghostX);
+      this.spawnSpriteDeath(id, ghostX, sprite);
     }
 
     for (const unit of this.world.units) {
@@ -918,6 +925,34 @@ export class BattleScene extends Phaser.Scene {  private world!: World;
     if (typeId) {
       spawnGhost(this, ghostX, this.groundY, typeId, this.lastFacing.get(id) ?? 1);
       // M13: the unit shatters at its last spot (screen-only feedback).
+      this.particles.spawnDeath(typeId, ghostX, this.groundY, id * 31 + this.world.tick);
+    }
+    this.lastTypeId.delete(id);
+    this.lastFacing.delete(id);
+  }
+
+  /**
+   * The SPRITE twin of spawnDeathFor (M15): a sprite unit's death must not
+   * explode into a skeletal ghost — that would be a style break in the
+   * middle of an all-sprite battlefield. Instead the sprite's last-drawn
+   * frame fades out and sinks, same 400ms envelope as the skeletal ghost,
+   * plus the same shatter particles (they are colour-keyed per type, not
+   * skeletal). The sprite object was already removed from the map by the
+   * caller — this tween owns it through to destroy.
+   */
+  private spawnSpriteDeath(id: number, ghostX: number, sprite: SpriteStickman): void {
+    const typeId = this.lastTypeId.get(id);
+    const obj = sprite.obj;
+    obj.setDepth(-1);
+    this.tweens.add({
+      targets: obj,
+      alpha: 0,
+      y: obj.y + 6,
+      duration: 400,
+      ease: 'Quad.easeOut',
+      onComplete: () => sprite.destroy(),
+    });
+    if (typeId) {
       this.particles.spawnDeath(typeId, ghostX, this.groundY, id * 31 + this.world.tick);
     }
     this.lastTypeId.delete(id);
